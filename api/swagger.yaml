@@ -5569,11 +5569,11 @@ definitions:
       ampcs_address:
         type: string
         description: "Network address of the machine that ampcs services/software\
-          \ is run from for the venue in question"
+          \ is run from for the venue in question (i.e. smap_wsts_17.jpl.nasa.gov)"
       sse_address:
         type: string
         description: "Network address of the machine that sse services/software is\
-          \ run from for the venue in question"
+          \ run from for the venue in question (i.e. smap_wsts_17.jpl.nasa.gov)"
       location:
         type: string
         description: physical location of the machine (e.g., building 123)

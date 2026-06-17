@@ -53,5 +53,7 @@ npm start
 
 It should be noted that youll still need to connect to some external Arangodb. npm start will only start the archive API not arangodb itself
 
-
+## Contact
+Chris Swan: Christopher.A.Swan@jpl.nasa.gov
+Ingenium Development Team: ingenium-dev@jpl.nasa.gov
 
