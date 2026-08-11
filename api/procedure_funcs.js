@@ -1,5 +1,5 @@
 'use strict'
-var uuid = require('node-uuid');
+var uuid = require('uuid');
 var deepcopy = require('deepcopy');
 var arangojs = require('arangojs');
 var extend = require('extend');

@@ -16,3 +16,4 @@ venue_stuff/*
 tests/ve3/
 tests/test-reports/
 set_env2.conf
+coverage/

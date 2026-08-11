@@ -2,7 +2,7 @@
 
 // Constants
 
-var uuid = require('node-uuid');
+var uuid = require('uuid');
 var jwt = require('jsonwebtoken');
 var extend = require('extend');
 var deepcopy = require('deepcopy');

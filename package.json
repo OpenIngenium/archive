@@ -4,26 +4,34 @@
   "description": "Ingenium Archival Start",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "keywords": [
     "swagger"
   ],
   "license": "Unlicense",
   "private": true,
+  "engines": {
+    "node": ">=22.0.0 <23"
+  },
   "dependencies": {
     "arangojs": "7.8.0",
     "deepcopy": "2.1.0",
-    "express": "^4.18.1",
+    "express": "^4.21.2",
     "express-interceptor": "^1.2.0",
     "extend": "^3.0.2",
     "js-yaml": "^4.1.0",
-    "jsonwebtoken": "^8.5.1",
+    "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
-    "node-uuid": "^1.4.7",
-    "path": "^0.12.7",
     "remove-blank-lines": "1.4.1",
     "swagger-tools": "0.10.4",
-    "winston": "3.8.2"
+    "uuid": "^11.1.0",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
   }
 }

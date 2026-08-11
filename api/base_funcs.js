@@ -6,7 +6,7 @@ const MESSAGE = Symbol.for('message');
 
 var arangojs = require('arangojs');
 var util = require('util');
-var uuid = require('node-uuid');
+var uuid = require('uuid');
 var extend = require('extend');
 var deepcopy = require('deepcopy');
 var definitions = require('../definitions.js');
