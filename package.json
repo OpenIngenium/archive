@@ -1,0 +1,48 @@
+{
+  "name": "Ingenium_Archive",
+  "version": "1.0.0",
+  "description": "Ingenium Archival Start",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "keywords": [
+    "swagger"
+  ],
+  "license": "Apache-2.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.0.0 <23"
+  },
+  "dependencies": {
+    "arangojs": "7.8.0",
+    "body-parser": "^1.20.6",
+    "deepcopy": "2.1.0",
+    "express": "^4.21.2",
+    "express-interceptor": "^1.2.0",
+    "extend": "^3.0.2",
+    "js-yaml": "^4.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "lodash": "^4.17.21",
+    "remove-blank-lines": "1.4.1",
+    "swagger-tools": "0.10.4",
+    "uuid": "^11.1.0",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "overrides": {
+    "swagger-tools": {
+      "body-parser": "^1.20.9",
+      "path-to-regexp": "^3.3.0",
+      "multer": "^2.5.0",
+      "z-schema": {
+        "validator": "^13.15.35"
+      }
+    }
+  }
+}

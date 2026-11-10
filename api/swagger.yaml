@@ -1,0 +1,6397 @@
+swagger: "2.0"
+info:
+  description: "Ingenium Archival Start"
+  version: "5.0.0"
+  title: "Archive"
+host: "127.0.0.1:8010"
+basePath: /api/v5
+schemes:
+- "http"
+consumes:
+- "application/json"
+produces:
+- "application/json"
+
+securityDefinitions:
+  UserSecurity:
+    # Technically, this service uses JWT and the type should be apiKey.
+    # But apiKey type of swagger does not support scopes since scope is not part of the JWT specs.
+    # Instead use oauth2 as the type so that we can define scopes in swagger and we can use the 
+    # swagger tools middleware to handle authorization. This approach may not be semantically correct but
+    # is a practical get-around approach.
+    type: oauth2
+    authorizationUrl: www.sample.com
+    flow: implicit
+    scopes:
+      admin: Administrative permission such as adding venues, managing users, etc.
+      execute:wsts: Execute procedures on WSTS Venues
+      execute:testbed: Execute procedures on Testbed Venues
+      execute:sit: Execute procedures on System I&T Venues
+      execute:other: Execute procedures on other Venues
+      config_mgmt: Make changes to project configurations such as command dictionary
+      imcm: Information management configuration management to release procedure
+      test_lead: Test lead
+      author: authoring procedure
+      basic: basic level permission that includes adding comments
+
+# Any scope can be used by default
+security:
+  - UserSecurity: ["admin", "execute:wsts", "execute:testbed", "execute:sit", "execute:other", "config_mgmt", "imcm", "test_lead", "author", "basic"] 
+
+paths:
+
+  /executions:
+    post:
+      tags:
+        - Execution
+      description: "Create an execution"
+      operationId: "create_execution"
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]           
+      parameters:
+        - name: execution
+          in: body
+          description: "Execution meta data"
+          required: true
+          schema:
+            $ref: "#/definitions/ExecutionInfoInput"      
+      responses:
+        200:
+          description: "Created"
+          schema:
+            $ref: "#/definitions/ExecutionInfo"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+            
+    get:
+      tags:
+        - Execution
+      description: Get a list of executions. List is sorted by start date by default (latest first).
+      operationId: get_executions
+      parameters:
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"
+        - $ref: "#/parameters/sort"     
+        - name: sort_by
+          in: query
+          description: sort by this parameter
+          required: false
+          type: string
+          enum:
+            - EXECUTION_ID
+            - TIME_STARTED
+            - TIME_COMPLETED
+            - VENUE_NAME               
+            - STATUS        
+        - name: execution_id
+          in: query
+          description: filter by execution_id
+          required: false
+          type: string        
+        - $ref: "#/parameters/description"                
+        - name: status
+          in: query
+          description: filter by status
+          required: false
+          type: string
+          enum:
+            - RUNNING
+            - IDLE
+            - PAUSED
+            - HALTED
+            - SUSPENDED
+            - CLOSED
+            - IN_REVIEW          
+            - FINALIZED        
+        - name: statuses
+          in: query
+          description: comma separated list of statuses
+          required: false
+          type: string      
+        - $ref: "#/parameters/completed"     
+        - name: from_time
+          in: query
+          description: search from this time (execution start time in UTC such as 2021-01-07T02:56:23.877Z)
+          required: false
+          type: string
+        - name: to_time
+          in: query
+          description: search up to this time (execution start time in UTC such as 2021-01-07T02:56:23.877Z)
+          required: false
+          type: string            
+        - name: venue_id
+          in: query
+          description: filter by venue id
+          required: false
+          type: string
+        - name: venue_name
+          in: query
+          description: filter by venue name
+          required: false
+          type: string     
+        - name: venue_type
+          in: query
+          description: filter by venue type
+          required: false
+          type: string     
+          enum:
+            - WSTS
+            - Testbed
+            - ATLO
+            - Other                   
+        - name: run_for_score
+          in: query
+          description: filter by run for score flag
+          required: false
+          type: boolean                   
+        - name: test_conductor
+          in: query
+          description: filter by test_conductor
+          required: false
+          type: string                     
+        - name: procedure_id
+          in: query
+          description: filter by procedure_id used in the execution
+          required: false
+          type: string
+        - name: version
+          in: query
+          description: filter by procedure version used in the execution. procedure_id must be specified.
+          required: false
+          type: integer            
+        - name: institutional_id    
+          in: query
+          description: filter by institutional id of procedure used in the execution
+          required: false
+          type: string                             
+        - name: institutional_release_id  
+          in: query
+          description: filter by institutional release id of procedure version used in the execution. institutional_id must be specified.
+          required: false
+          type: string           
+   
+      responses:
+        200:
+          description: "Success"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer    
+          schema:
+            type: "array"
+            title: "ExecutionArray"
+            items:
+              $ref: "#/definitions/ExecutionInfo"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse" 
+            
+    x-swagger-router-controller: Execution              
+
+  /executions/import:
+    post:
+      tags:
+        - Execution
+      description: Import execution, elements and edges
+      operationId: import_execution
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other", "config_mgmt"]
+      parameters:
+        - name: import_input
+          in: body
+          description: Execution, elements and edges
+          required: false
+          schema:
+            $ref: "#/definitions/ExecutionData"    
+      responses:
+        204:
+          description: Imported
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse" 
+    
+    x-swagger-router-controller: Execution    
+
+  /executions/{execution_id}:
+    get:
+      tags:
+        - Execution
+      description: "Get meta data of an execution"
+      operationId: "get_execution"
+      parameters:
+        - $ref: "#/parameters/execution_id"
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/ExecutionInfo"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    patch:
+      tags:
+        - Execution
+      description: "Update meta data of an execution"
+      operationId: "update_execution"
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - name: execution_meta_data
+          in: body
+          description: meta data of execution
+          required: true
+          schema:
+            $ref: "#/definitions/ExecutionInfo"         
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/ExecutionInfo"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"     
+            
+    delete:
+      tags:
+        - Execution
+      description: "Delete an execution"
+      operationId: "delete_execution"   
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"      
+      responses:
+        204:
+          description: "Deleted"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    
+    x-swagger-router-controller: Execution              
+
+  /executions/{execution_id}/export:
+    get:
+      tags:
+        - Execution
+      description: Get execution info, elements and edges
+      operationId: "export_execution"
+      parameters:
+        - $ref: "#/parameters/execution_id"
+      responses:
+        200:
+          description: execution, elements and edges
+          schema:
+            $ref: "#/definitions/ExecutionData"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    
+    x-swagger-router-controller: Execution
+
+  /executions/{execution_id}/status:
+    get:
+      tags:
+        - Execution
+      description: "Get the current status of the execution"
+      operationId: "get_execution_status"
+      parameters:
+        - $ref: "#/parameters/execution_id"      
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/ExecutionStatus"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    post:
+      tags:
+        - Execution
+      description: "Update the current status of the execution"
+      operationId: "update_execution_status"
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"      
+        - name: execution_status
+          in: body
+          description: status of the execution
+          required: true
+          schema:
+            $ref: "#/definitions/ExecutionStatusInput" 
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/ExecutionInfo"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"   
+
+    x-swagger-router-controller: Execution                         
+
+  /executions/{execution_id}/next_elem:
+    get:
+      tags:
+        - Execution
+      description: Get the element next to the specified element
+      operationId: get_next_element
+      parameters:
+        - $ref: "#/parameters/execution_id"  
+        - name: elem_id
+          in: query
+          description: id of the reference element
+          required: true
+          type: string      
+        - name: executable
+          in: query
+          description: true if consider only executable element (step or procedure section)
+          required: false
+          default: false
+          type: boolean                 
+      responses:
+        200:
+          description: Element 
+          schema:
+            $ref: "#/definitions/ProcedureElement"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    x-swagger-router-controller: Execution            
+     
+  /executions/{execution_id}/boundary_elem:
+    post:
+      tags:
+        - Execution
+      description: Set boundary_elem_id to determine the scope of AUTO execution
+      operationId: set_boundary_element
+      parameters:
+        - $ref: "#/parameters/execution_id"  
+        - name: elem_id
+          in: query
+          description: id of the element for which execution starts
+          required: true
+          type: string                           
+      responses:
+        200:
+          description: Execution 
+          schema:
+            $ref: "#/definitions/ExecutionInfo"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    x-swagger-router-controller: Execution   
+
+  /executions/{execution_id}/steps:
+    post:
+      tags:
+        - Execution
+      description: Create a step
+      operationId: create_execution_step
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/insert_after_id"
+        - $ref: "#/parameters/level"
+        - name: step
+          in: body
+          description: step definition including its type
+          required: true
+          schema:
+            $ref: "#/definitions/Step"       
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/AddStepResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    get:
+      tags:
+        - Execution
+      description: Get steps of the execution. List is sorted by the order in the execution.
+      operationId: get_execution_steps
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"      
+        - $ref: "#/parameters/sort"
+        - $ref: "#/parameters/description"                
+      responses:
+        200:
+          description: "Success"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer              
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Step'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    
+    x-swagger-router-controller: Execution               
+            
+  /executions/{execution_id}/elements:
+    get:
+      tags:
+      - Execution
+      description: Get elements of the specified type from execution. List is sorted by the order in the execution.
+      operationId: get_execution_elements
+      parameters:
+        - $ref: "#/parameters/execution_id" 
+        - $ref: "#/parameters/elem_type"      
+        - $ref: "#/parameters/step_type"
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"
+        - $ref: "#/parameters/sort"
+        - $ref: "#/parameters/description"
+        - $ref: "#/parameters/all_elements"                
+        - $ref: "#/parameters/comment_filter"
+        - $ref: "#/parameters/ar_comment_filter"
+        - $ref: "#/parameters/dr_comment_filter"
+      responses:
+        200:
+          description: |
+            Array of elements of an execution that matches the query criteria.
+            Step element may include run_records of previous runs of the step as defined in StepWithRunRecords data model.       
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer
+          schema:
+            type: "array"
+            title: "elements"
+            items:
+              $ref: "#/definitions/ProcedureElement"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"    
+    patch:
+      tags:
+      - Execution
+      description: Update elements
+      operationId: update_execution_elements
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"   
+        - name: elems_input
+          in: body
+          description: elements to be updated
+          required: true
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/ProcedureElement"   
+      responses:
+        200:
+          description: updated elements       
+          schema:
+            type: "array"
+            title: "elements"
+            items:
+              $ref: "#/definitions/ProcedureElement"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"              
+    
+    x-swagger-router-controller: Execution      
+    
+  /executions/{execution_id}/simple_elements:
+    get:
+      tags:
+      - Execution
+      description: Get elements of execution (only key fields)
+      operationId: get_execution_simple_elements
+      parameters:
+        - $ref: "#/parameters/execution_id"
+      responses:
+        200:
+          description: |
+            Array of elements of an execution (only key fields of elements)       
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer
+          schema:
+            type: "array"
+            title: "elements"
+            items:
+              $ref: "#/definitions/ProcedureSimpleElement"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"    
+
+    x-swagger-router-controller: Execution      
+
+  /executions/{execution_id}/outline:
+    get:
+      tags:
+        - Execution
+      description: Get outline view of execution
+      operationId: get_execution_outline
+      parameters:
+        - $ref: "#/parameters/execution_id"
+      responses:
+        200:
+          description: "Outline elements"
+          schema:
+            type: "array"
+            title: "elements"
+            items:
+              $ref: "#/definitions/OutlineElement"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    
+    x-swagger-router-controller: Execution      
+            
+  /executions/{execution_id}/elements/move:
+    post:
+      tags:
+      - Execution
+      description: Move elements and their children to another location in execution
+      operationId: move_execution_element
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - name: move_element_input
+          in: body
+          schema:
+            $ref: "#/definitions/MoveElementInput"
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/MoveElementsResponse"            
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"    
+    
+    x-swagger-router-controller: Execution       
+            
+  /executions/{execution_id}/elements/copy:
+    post:
+      tags:
+      - Execution
+      description: Copy elements and their children to another location in execution
+      operationId: copy_execution_element
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"                   
+        - name: copy_element_input
+          in: body
+          schema:
+            $ref: "#/definitions/CopyElementInput"
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/CopyElementResponse"            
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"    
+    
+    x-swagger-router-controller: Execution  
+
+  /executions/{execution_id}/elements/discard:
+    post:
+      tags:
+        - Execution
+      description: discard redline/blueline elements
+      operationId: "execution_discard_elements"
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]      
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - name: discard_input
+          in: body
+          required: true
+          schema:
+            $ref: "#/definitions/DiscardInput"  
+      responses:
+        200:
+          description: Element modifications discarded
+          schema:
+            $ref: "#/definitions/DiscardElementResponse"      
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"    
+
+    x-swagger-router-controller: Execution     
+    
+  /executions/{execution_id}/elements/{elem_id}/conversations:
+    post:
+      tags:
+        - Comment
+      description: Add a conversation to an element
+      operationId: element_add_conversation
+      security:
+        - UserSecurity: ["basic"]
+      parameters:
+        - $ref: "#/parameters/execution_id"      
+        - $ref: "#/parameters/elem_id"
+        - name: conversation
+          in: body
+          description: conversation to add
+          required: true
+          schema:
+            $ref: "#/definitions/ConversationInput"
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/Conversation"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    get:
+      tags:
+        - Comment
+      description: Get a list of conversations for an element. List is ordered by the creation date (ascending order).
+      operationId: element_get_conversations
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/offset"
+        - $ref: "#/parameters/limit"
+        - $ref: "#/parameters/sort"
+      responses:
+        200:
+          description: "Success"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer
+          schema:
+            type: array
+            title: conversations
+            items:
+              $ref: "#/definitions/Conversation"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    x-swagger-router-controller: Comment    
+    
+  /executions/{execution_id}/elements/{elem_id}/conversations/{conversation_id}:
+    get:
+      tags:
+        - Comment
+      description: Get a conversation of an element"
+      operationId: element_get_conversation
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/Conversation"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    patch:
+      tags:
+        - Comment
+      description: Update a conversation of an element"
+      operationId: element_update_conversation
+      security:
+        - UserSecurity: ["basic"]
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+        - name: conversation
+          in: body
+          description: conversation to update
+          required: true
+          schema:
+            $ref: "#/definitions/ConversationInput"
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/Conversation"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    delete:
+      tags:
+        - Comment
+      description: "Delete a conversation"
+      operationId: "element_delete_conversation"
+      security:
+        - UserSecurity: ["basic"]
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+      responses:
+        204:
+          description: "Deleted"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    x-swagger-router-controller: Comment    
+
+  /executions/{execution_id}/elements/{elem_id}/conversations/{conversation_id}/comments:
+    post:
+      tags:
+        - Comment
+      description: Add a comment to an element
+      operationId: element_add_comment
+      security:
+        - UserSecurity: ["basic"]
+      parameters:
+        - $ref: "#/parameters/execution_id"      
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+        - name: comment
+          in: body
+          description: comment to add
+          required: true
+          schema:
+            $ref: "#/definitions/CommentInput"
+
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/Comment"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    get:
+      tags:
+        - Comment
+      description: Get a list of comments for an element. List is ordered by the creation date (ascending order).
+      operationId: element_get_comments
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+        - $ref: "#/parameters/offset"
+        - $ref: "#/parameters/limit"
+        - $ref: "#/parameters/sort"
+      responses:
+        200:
+          description: "Success"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer
+          schema:
+            type: array
+            title: comments
+            items:
+              $ref: "#/definitions/Comment"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    x-swagger-router-controller: Comment
+            
+  /executions/{execution_id}/elements/{elem_id}/conversations/{conversation_id}/comments/{comment_id}:
+    get:
+      tags:
+        - Comment
+      description: Get a comment of an element"
+      operationId: element_get_comment
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+        - $ref: "#/parameters/comment_id"
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/Comment"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    patch:
+      tags:
+        - Comment
+      description: Update a comment of an element"
+      operationId: element_update_comment
+      security:
+        - UserSecurity: ["basic"]
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+        - $ref: "#/parameters/comment_id"  
+        - name: comment
+          in: body
+          description: comment to update
+          required: true
+          schema:
+            $ref: "#/definitions/CommentInput"             
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/Comment"           
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"             
+    delete:
+      tags:
+        - Comment
+      description: "Delete a comment"
+      operationId: "element_delete_comment"
+      security:
+        - UserSecurity: ["basic"]
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+        - $ref: "#/parameters/comment_id"
+      responses:
+        204:
+          description: "Deleted"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    x-swagger-router-controller: Comment          
+            
+  /executions/{execution_id}/as_run:
+    get:
+      tags:
+        - Execution
+      description: "Get as run report for an execution"
+      operationId: "get_execution_as_run"
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"
+        - $ref: "#/parameters/sort"        
+      responses:
+        200:
+          description: |
+            Elements of as run report. A list of nested procedure elements. 
+            Note that the spec is correct but Swagger UI will show undefined since it does not handle recursive data structure.
+            Step element may include run_records of previous runs of the step as defined in StepWithRunRecords data model.
+          schema:
+            $ref: "#/definitions/ExecutionAsRun"
+              
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    
+    x-swagger-router-controller: Execution      
+  
+  /executions/{execution_id}/history:
+    get:
+      tags:
+        - Execution
+      description: "Get execution history of steps"
+      operationId: "get_execution_history"
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"
+        - $ref: "#/parameters/sort"         
+      responses:
+        200:
+          description: "Steps of execution history"           
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Step"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    
+    x-swagger-router-controller: Execution    
+
+  /executions/{execution_id}/elements/{elem_id}:
+    get:
+      tags:
+        - Execution
+      description: "Get an element"
+      operationId: "execution_get_element"
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"          
+      responses:
+        200:
+          description: "Element"
+          schema:
+            $ref: "#/definitions/ProcedureElement"           
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse" 
+    patch:
+      tags:
+        - Execution
+      description: "Update an element"
+      operationId: "execution_update_element"
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - name: elem_input
+          in: body
+          description: element data to update
+          required: true
+          schema:
+            $ref: "#/definitions/ProcedureElement"            
+      responses:
+        200:
+          description: "Updated element"
+          schema:
+            $ref: "#/definitions/ProcedureElement"           
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"     
+    delete:
+      tags:
+        - Execution
+      description: "Delete a element"
+      operationId: "execution_delete_element"
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"      
+      responses:
+        200:
+          description: "Deleted"
+          schema:
+            $ref: "#/definitions/ElementsNumberResponse"           
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"  
+
+    x-swagger-router-controller: Execution                    
+
+  /executions/{execution_id}/elements/{elem_id}/modify:
+    post:
+      tags:
+        - Execution
+      description: modify an element to create a redline/blueline 
+      operationId: "execution_modify_element"
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+      responses:
+        200:
+          description: Modified element created. New redline element and changed numbers are returned.
+          schema:
+            $ref: "#/definitions/ModifyElementResponse"      
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"                
+            
+    x-swagger-router-controller: Execution              
+
+  /executions/{execution_id}/elements/{elem_id}/discard:
+    post:
+      tags:
+        - Execution
+      description: discard a redline/blueline element 
+      operationId: "execution_discard_element"
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"  
+      responses:
+        200:
+          description: Element modification discarded
+          schema:
+            $ref: "#/definitions/DiscardElementResponse"      
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"    
+
+    x-swagger-router-controller: Execution            
+
+  /executions/{execution_id}/steps/{elem_id}:    
+    get:
+      tags:
+        - Step
+      description: "Get step definition and result"
+      operationId: "get_step"
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"      
+      responses:
+        200:
+          description: "Success"
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Step'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"    
+            
+    patch:
+      tags:
+        - Step
+      description: Update a step
+      operationId: update_step
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - name: step
+          in: body
+          description: Definition of step
+          required: true
+          schema:
+            $ref: "#/definitions/Step"  
+      responses:
+        200:
+          description: Updated element
+          schema:
+            $ref: '#/definitions/Step'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"    
+            
+    x-swagger-router-controller: Step     
+            
+  /executions/{execution_id}/steps/{elem_id}/input:
+    get:
+      tags:
+        - Step
+      description: Get user input of a step 
+      operationId: get_step_input
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+      responses:
+        200:
+          description: User input of the step
+          schema:
+            type: object
+            
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"       
+    post:
+      tags:
+        - Step
+      description: Update user input of a step
+      operationId: update_step_input
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - name: user_input
+          in: body
+          description: User input values
+          required: true
+          schema: 
+            type: object
+      responses:
+        204:
+          description: "Updated"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"  
+            
+    x-swagger-router-controller: Step               
+            
+  /executions/{execution_id}/steps/{elem_id}/result:
+    get:
+      tags:
+        - Step
+      description: Get result of a step 
+      operationId: get_step_result
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+      responses:
+        200:
+          description: Result of the step
+          schema: 
+            $ref: "#/definitions/StepResult"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"       
+    post:
+      tags:
+        - Step
+      description: Update result of a step
+      operationId: update_step_result
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - name: result
+          in: body
+          description: Result of step 
+          required: true
+          schema:
+            $ref: "#/definitions/StepResult"
+      responses:
+        200:
+          description: Updated step
+          schema:
+            $ref: "#/definitions/Step"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"      
+            
+    x-swagger-router-controller: Step    
+
+  /executions/{execution_id}/steps/{elem_id}/new_run:     
+    post:
+      tags:
+        - Step
+      description: Create a copy of the step to run it again
+      operationId: create_new_run
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+      responses:
+        200:
+          description: Updated step with run records
+          schema:
+            $ref: "#/definitions/StepWithRunRecords"  
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"  
+            
+    x-swagger-router-controller: Step           
+    
+  /executions/{execution_id}/elements/{elem_id}/files:
+    post:
+      tags:
+        - File
+      description: Upload a file to a procedure element
+      operationId: element_upload_file
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - name: file_metadata
+          in: body
+          description: Metadata to store about file
+          required: true
+          schema:
+            $ref: "#/definitions/FileInfo"       
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/FileInfo"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"  
+    get:
+      tags:
+        - File
+      description: Get a list of attached files for a procedure element. List is ordered by the creation date (ascending order).
+      operationId: "element_get_files"
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"     
+        - $ref: "#/parameters/sort"
+      responses:
+        200:
+          description: "Success"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer            
+          schema:
+            type: array
+            title: comments
+            items:
+              $ref: "#/definitions/FileInfo" 
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"   
+            
+    x-swagger-router-controller: File            
+            
+  /executions/{execution_id}/elements/{elem_id}/files/{file_id}:
+    get:
+      tags:
+        - File
+      description: "Download a list of attached files for a procedure element"
+      operationId: "element_get_file"
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"     
+        - $ref: "#/parameters/file_id"
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/FileInfo"             
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"      
+    delete:
+      tags:
+        - File
+      description: "Delete an attached file"
+      operationId: "element_delete_file"
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"     
+        - $ref: "#/parameters/file_id"       
+      responses:
+        200:
+          description: "Deleted"
+          schema:
+            $ref: "#/definitions/FileInfo"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+            
+    x-swagger-router-controller: File  
+    
+  /executions/{execution_id}/files:
+    get:
+      tags:
+        - File
+      description: Get a list of attached files for a procedure execution. List is ordered by the creation date (ascending order).
+      operationId: "execution_get_files"
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/offset"
+        - $ref: "#/parameters/limit"
+        - $ref: "#/parameters/sort"
+      responses:
+        200:
+          description: "Success"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer
+          schema:
+            type: array
+            title: files
+            items:
+              $ref: "#/definitions/FileInfo"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    post:
+      tags:
+        - File
+      description: Upload a file to a procedure execution
+      operationId: "execution_upload_file"
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      consumes:
+        - multipart/form-data
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - name: file_metadata
+          in: body
+          description: Metadata to store about file
+          required: true
+          schema:
+            $ref: "#/definitions/FileInfo" 
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/FileInfo"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    x-swagger-router-controller: File
+    
+  /executions/{execution_id}/files/{file_id}:
+    get:
+      tags:
+        - File
+      description: Get a specific files meta-data
+      operationId: "execution_get_file"
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/file_id"
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/FileInfo"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    delete:
+      tags:
+        - File
+      description: Delete an attached file
+      operationId: "execution_delete_file"
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/file_id"
+      responses:
+        200:
+          description: "Deleted"
+          schema:
+            $ref: "#/definitions/FileInfo"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    x-swagger-router-controller: File
+    
+  /executions/{execution_id}/elements/{elem_id}/conversations/{conversation_id}/comments/{comment_id}/files:
+    get:
+      tags:
+        - File
+      description: Get a list of files attached to comments
+      operationId: element_get_comment_files
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"        
+        - $ref: "#/parameters/comment_id"
+        - $ref: "#/parameters/offset"
+        - $ref: "#/parameters/limit"
+        - $ref: "#/parameters/sort"
+      responses:
+        200:
+          description: "Success"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer
+          schema:
+            type: array
+            title: files
+            items:
+              $ref: "#/definitions/FileInfo"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    post:
+      tags:
+        - File
+      description: Upload a file to an element comment
+      operationId: "element_post_comment_file"
+      security:
+        - UserSecurity: ["basic"]
+      consumes:
+        - multipart/form-data
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"        
+        - $ref: "#/parameters/comment_id"
+        - name: file_metadata
+          in: body
+          description: Metadata to store about file
+          required: true
+          schema:
+            $ref: "#/definitions/FileInfo" 
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/FileInfo"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    x-swagger-router-controller: File
+  /executions/{execution_id}/elements/{elem_id}/conversations/{conversation_id}/comments/{comment_id}/files/{file_id}:
+    get:
+      tags:
+        - File
+      description: get a files meta data
+      operationId: element_get_comment_file
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+        - $ref: "#/parameters/comment_id"
+        - $ref: "#/parameters/file_id"  
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/FileInfo"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    delete:
+      tags:
+        - File
+      description: "Delete a file"
+      operationId: "element_delete_comment_file"
+      security:
+        - UserSecurity: ["basic"]
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+        - $ref: "#/parameters/comment_id"
+        - $ref: "#/parameters/file_id"
+      responses:
+        200:
+          description: "Deleted"
+          schema:
+            $ref: "#/definitions/FileInfo"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    x-swagger-router-controller: File
+
+  /executions/{execution_id}/sections:
+    post:
+      tags:
+        - Section
+      description: Create a section
+      operationId: create_section
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/insert_after_id"
+        - $ref: "#/parameters/level" 
+        - name: section
+          in: body
+          description: section definition 
+          required: true
+          schema:
+            $ref: "#/definitions/Section"          
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/AddSectionResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    get:
+      tags:
+        - Section
+      description: Get sections of the execution. List is sorted by the order in the execution.
+      operationId: get_execution_sections
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"    
+        - $ref: "#/parameters/sort"
+        - $ref: "#/parameters/description"          
+      responses:
+        200:
+          description: "Success"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer            
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Section'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"  
+            
+    x-swagger-router-controller: Section                  
+            
+  /executions/{execution_id}/sections/{elem_id}:
+    get:
+      tags:
+        - Section
+      description: "Get section definition"
+      operationId: "get_section"
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"      
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: '#/definitions/Section'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"       
+    patch:
+      tags:
+        - Section
+      description: Update a section
+      operationId: update_section
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - name: section
+          in: body
+          description: Definition of section
+          required: true          
+          schema:
+            $ref: "#/definitions/Section"  
+      responses:
+        200:
+          description: Updated element
+          schema:
+            $ref: "#/definitions/Section"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"   
+            
+    x-swagger-router-controller: Section       
+    
+  /executions/{execution_id}/procedure_sections:
+    post:
+      tags:
+        - ProcSection
+      description: Create a procedure section
+      operationId: create_procedure_section
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/insert_after_id"
+        - $ref: "#/parameters/level" 
+        - name: procedure_section
+          in: body
+          description: procedure section definition 
+          required: true
+          schema:
+            $ref: "#/definitions/ProcedureSection"          
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/AddProcedureSectionResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    get:
+      tags:
+        - ProcSection
+      description: Get procedure sections of the execution. List is sorted by the order in the execution.
+      operationId: get_execution_procedure_sections
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"    
+        - $ref: "#/parameters/sort"
+        - $ref: "#/parameters/description"          
+      responses:
+        200:
+          description: "Success"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer            
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/ProcedureSection'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"  
+            
+    x-swagger-router-controller: ProcSection       
+    
+  /executions/{execution_id}/procedure_sections/{elem_id}:
+    get:
+      tags:
+        - ProcSection
+      description: Get procedure section definition
+      operationId: get_procedure_section
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"      
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: '#/definitions/ProcedureSection'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"       
+    patch:
+      tags:
+        - ProcSection
+      description: Update a procedure section
+      operationId: update_procedure_section
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - name: procedure_section
+          in: body
+          description: Definition of procedure section
+          required: true          
+          schema:
+            $ref: "#/definitions/ProcedureSection"  
+      responses:
+        200:
+          description: Updated element
+          schema:
+            $ref: "#/definitions/ProcedureSection"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"   
+            
+    x-swagger-router-controller: ProcSection                          
+    
+  /executions/{execution_id}/procedure_sections/{elem_id}/input:
+    get:
+      tags:
+        - ProcSection
+      description: Get user input of a procedure section
+      operationId: get_procedure_section_input
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+      responses:
+        200:
+          description: User input of the procedure section
+          schema:
+            $ref: "#/definitions/ProcedureSectionInput"
+            
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"       
+    post:
+      tags:
+        - ProcSection
+      description: Update user input of a procedure section
+      operationId: update_procedure_section_input
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - name: user_input
+          in: body
+          description: User input values
+          required: true
+          schema: 
+            $ref: "#/definitions/ProcedureSectionInput"
+      responses:
+        204:
+          description: "Updated"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"  
+    x-swagger-router-controller: ProcSection 
+                    
+  /executions/{execution_id}/procedure_sections/{elem_id}/structure:
+    get:
+      tags:
+        - ProcSection
+      description: Get structure of the selected procedure elements
+      operationId: get_procedure_section_structure
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"      
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/ProcedureStructure"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"   
+            
+    x-swagger-router-controller: ProcSection   
+
+  /executions/{execution_id}/procedure_sections/{elem_id}/elements:
+    get:
+      tags:
+        - ProcSection
+      description: Get selected elements of the procedure
+      operationId: get_procedure_section_elements
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"      
+      responses:
+        200:
+          description: "Success"
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/ProcedureElement'           
+            description: selected elements
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"   
+            
+    x-swagger-router-controller: ProcSection    
+                        
+  /executions/{execution_id}/procedure_sections/{elem_id}/import:
+    post:
+      tags:
+        - ProcSection
+      description: Import elements from the referenced procedure
+      operationId: import_procedure_section
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+      responses:
+        200:
+          description: A list of elements created by import           
+          schema:
+            type: "array"
+            title: "elements"
+            items:
+              $ref: "#/definitions/ProcedureElement"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"    
+            
+    x-swagger-router-controller: ProcSection                
+
+  /executions/{execution_id}/paragraphs:
+    post:
+      tags:
+        - Paragraph
+      description: Create a paragraph
+      operationId: create_paragraph
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/insert_after_id" 
+        - $ref: "#/parameters/level"    
+        - name: paragraph
+          in: body
+          description: paragraph definition 
+          required: true
+          schema:
+            $ref: "#/definitions/Paragraph"         
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/AddParagraphResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    get:
+      tags:
+        - Paragraph
+      description: Get paragraphs of the execution. List is sorted by the order in the execution.
+      operationId: get_execution_paragraphs
+      parameters:
+        - $ref: "#/parameters/execution_id"   
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"
+        - $ref: "#/parameters/sort"
+        - $ref: "#/parameters/description"          
+      responses:
+        200:
+          description: "Success"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer            
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Paragraph'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"     
+            
+    x-swagger-router-controller: Paragraph               
+            
+  /executions/{execution_id}/paragraphs/{elem_id}:
+    get:
+      tags:
+        - Paragraph
+      description: "Get paragraph definition"
+      operationId: "get_paragraph"
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"      
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: '#/definitions/Paragraph'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"       
+    patch:
+      tags:
+        - Paragraph
+      description: Update a paragraph
+      operationId: update_paragraph
+      security:
+        - UserSecurity: ["execute:wsts", "execute:testbed", "execute:sit", "execute:other"]          
+      parameters:
+        - $ref: "#/parameters/execution_id"
+        - $ref: "#/parameters/elem_id"
+        - name: paragraph
+          in: body
+          description: Definition of paragraph
+          required: true
+          schema:
+            $ref: "#/definitions/Paragraph"  
+      responses:
+        200:
+          description: Updated element
+          schema:
+            $ref: "#/definitions/Paragraph"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"   
+            
+    x-swagger-router-controller: Paragraph               
+
+  /venue_groups:
+    post:
+      tags:
+        - VenueGroup
+      description: create a venue group
+      operationId: create_venue_group   
+      security:
+        - UserSecurity: ["admin"]        
+      parameters:
+        - name: venue_group
+          in: body
+          description: Definition of venue group
+          required: true
+          schema:
+            $ref: "#/definitions/VenueGroupInput"      
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/VenueGroup"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    get:
+      tags:
+        - VenueGroup
+      description: Get list of venue groups. List is sorted by name by default.
+      operationId: get_venue_groups
+      parameters:
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"   
+        - $ref: "#/parameters/sort"
+        - name: status
+          in: query
+          description: Filter on status
+          required: false
+          type: string
+          enum:
+            - ACTIVE
+            - INACTIVE
+        - name: venue_group_name
+          in: query
+          description: filter on venue group name
+          required: false
+          type: string
+        - $ref: "#/parameters/description"  
+      responses:
+        200:
+          description: "Success"
+          headers:
+            x-total-count:
+              description: The total number of venue groups
+              type: integer            
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/VenueGroup'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"        
+            
+    x-swagger-router-controller: VenueGroup
+            
+  /venue_groups/{venue_group_id}:
+    get:
+      tags:
+        - VenueGroup
+      description: "Get venue group information"
+      operationId: "get_venue_group"
+      parameters:
+        - $ref: "#/parameters/venue_group_id"   
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: '#/definitions/VenueGroup'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"       
+    patch:
+      tags:
+        - VenueGroup
+      description: Update a venue group
+      operationId: update_venue_group
+      security:
+        - UserSecurity: ["admin"]        
+      parameters:
+        - $ref: "#/parameters/venue_group_id"
+        - name: venue_group
+          in: body
+          description: Definition of venue group
+          required: true
+          schema:
+            $ref: "#/definitions/VenueGroupInput"  
+      responses:
+        204:
+          description: "Updated"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"   
+            
+    x-swagger-router-controller: VenueGroup
+            
+  /venues:
+    post:
+      tags:
+        - Venue
+      description: Register a venue
+      operationId: create_venue   
+      security:
+        - UserSecurity: ["admin"]        
+      parameters:
+        - name: venue
+          in: body
+          description: Definition of venue
+          required: true
+          schema:
+            $ref: "#/definitions/VenueInput"      
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/Venue"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    get:
+      tags:
+        - Venue
+      description: Get list of venues. List is sorted by name by default.
+      operationId: get_venues
+      parameters:      
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"   
+        - $ref: "#/parameters/sort"
+        - name: status
+          in: query
+          description: |
+            Filter on venue status
+            * `AVAILABLE`
+            * `IN_USE`
+            * `DOWN`
+            * `UNKNOWN`
+            * `RETIRED`
+          required: false
+          type: string
+          enum:
+            - AVAILABLE
+            - IN_USE
+            - DOWN
+            - UNKNOWN
+            - RETIRED
+        - name: exclude_status
+          in: query
+          description: Exclude venues of a given status
+          required: false
+          type: string
+          enum:
+            - AVAILABLE
+            - IN_USE
+            - DOWN
+            - UNKNOWN
+            - RETIRED            
+        - name: venue_type
+          in: query
+          description: filter on venue type
+          required: false
+          type: string
+          enum:
+            - WSTS
+            - Testbed
+            - ATLO
+            - Other  
+        - name: venue_name
+          in: query
+          description: filter on venue name
+          required: false
+          type: string
+        - $ref: "#/parameters/description"
+        - name: venue_group_name
+          in: query
+          description: filter on venue group name (exact match)
+          required: false
+          type: string
+        - name: venue_group_status
+          in: query
+          description: filter on venue group status
+          required: false
+          type: string
+          enum:
+            - ACTIVE
+            - INACTIVE
+      responses:
+        200:
+          description: "Success"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer            
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Venue'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"        
+            
+    x-swagger-router-controller: Venue             
+            
+  /venues/{venue_id}:
+    get:
+      tags:
+        - Venue
+      description: "Get venue information"
+      operationId: "get_venue"
+      parameters:
+        - $ref: "#/parameters/venue_id"   
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: '#/definitions/Venue'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"       
+    patch:
+      tags:
+        - Venue
+      description: Update a venue
+      operationId: update_venue
+      security:
+        - UserSecurity: ["admin"]        
+      parameters:
+        - $ref: "#/parameters/venue_id"
+        - name: venue
+          in: body
+          description: Definition of venue
+          required: true
+          schema:
+            $ref: "#/definitions/Venue"  
+      responses:
+        204:
+          description: "Updated"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"   
+    delete:
+      tags:
+        - Venue
+      description: "Delete a venue (admin only)"
+      operationId: "delete_venue"    
+      security:
+        - UserSecurity: ["admin"]        
+      parameters:
+        - $ref: "#/parameters/venue_id"      
+      responses:
+        204:
+          description: "Deleted"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"    
+            
+    x-swagger-router-controller: Venue            
+            
+  /venues/{venue_id}/status:
+    get:
+      tags:
+        - Venue
+      description: "Get venue status information"
+      operationId: "get_venue_status"
+      parameters:
+        - $ref: "#/parameters/venue_id"   
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: '#/definitions/VenueStatus'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"   
+            
+    patch:
+      tags:
+        - Venue
+      description: Update the status of venue
+      operationId: set_venue_status
+      # note that execute scopes are allowed here since Core will need to set the venue status to IN_USE
+      # when an execution is started. The same API in Core allows only "admin" scope.
+      security:
+        - UserSecurity: ["admin", "execute:wsts", "execute:testbed", "execute:sit", "execute:other"]        
+      parameters:
+        - $ref: "#/parameters/venue_id"
+        - name: venue_status
+          in: body
+          description: Status of venue
+          required: true
+          schema:
+            $ref: "#/definitions/VenueStatus"  
+      responses:
+        204:
+          description: "Updated"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+            
+    x-swagger-router-controller: Venue             
+    
+  /procedures:
+    post:
+      tags:
+        - Procedures
+      description: Create a procedure
+      operationId: create_procedure  
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - name: procedure
+          in: body
+          description: Procedure meta data
+          required: true
+          schema:
+            $ref: "#/definitions/ProcedureInput"      
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/ProcedureInfo"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    get:
+      tags:
+        - Procedures
+      description: |
+        Get a list of procedures. List is sorted by creation time (latest first).
+      operationId: get_procedures
+      parameters:
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"       
+        - $ref: "#/parameters/title"
+        - $ref: "#/parameters/description"
+        - $ref: "#/parameters/institutional_id"                
+        - $ref: "#/parameters/author"
+        - name: procedure_id
+          in: query
+          description: filter for procedure id. Will return any if not provided.
+          required: false
+          type: string
+        - name: versioned
+          in: query
+          description: filter for versioned status. Will return any if not provided.
+          required: false
+          type: boolean 
+        - name: procedure_type
+          in: query
+          description: filter for procedure_type. Will return any if not provided.
+          required: false
+          type: string   
+        - name: hazardous
+          in: query
+          description: filter for hazardous. Will return any if not provided.
+          required: false
+          type: boolean
+        - name: label
+          in: query
+          description: filter for label. Will return any if not provided.
+          required: false
+          type: string
+        - name: released
+          in: query
+          description: filter for released status. Will return any if not provided.
+          required: false
+          type: boolean          
+        - name: obsolete
+          in: query
+          description: filter for obsolete status. Will return any if not provided.
+          required: false
+          type: boolean
+        - $ref: "#/parameters/sort"       
+        - name: sort_by
+          in: query
+          description: sort by this parameter
+          required: false
+          type: string
+          enum:
+            - TIME_CREATED
+            - TIME_SAVED
+            - PROCEDURE_ID
+            - INSTITUTIONAL_ID
+      responses:
+        200:
+          description: Success
+          headers:
+            x-total-count:
+              description: The total number of procedures
+              type: integer    
+          schema:
+            type: array
+            title: ProcedureArray
+            items:
+              $ref: "#/definitions/ProcedureInfo"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse" 
+            
+    x-swagger-router-controller: Procedures         
+
+  /procedures/labels:
+    post:
+      tags:
+        - Procedures
+      description: Create a procedure label
+      operationId: create_procedure_label
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - name: procedure_label
+          in: body
+          description: Procedure Label data
+          required: true
+          schema:
+            $ref: "#/definitions/ProcedureLabelInput"      
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/ProcedureLabelInfo"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    get:
+      tags:
+        - Procedures
+      description: |
+        Get a list of procedures label.
+      operationId: get_procedure_labels
+      parameters:
+        - $ref: "#/parameters/offset"
+        - $ref: "#/parameters/limit"
+        - $ref: "#/parameters/sort"
+        - $ref: "#/parameters/procedure_label_name"
+        - $ref: "#/parameters/description" 
+      responses:
+        200:
+          description: Success
+          headers:
+            x-total-count:
+              description: The total number of procedure labels
+              type: integer    
+          schema:
+            type: array
+            title: ProcedureLabelArray
+            items:
+              $ref: "#/definitions/ProcedureLabelInfo"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse" 
+
+    x-swagger-router-controller: Procedures    
+
+  /procedures/labels/{label_id}:
+    delete:
+      tags:
+        - Procedures
+      description: Delete the procedure label 
+      operationId: delete_procedure_label
+      security:
+        - UserSecurity: ["admin"]      
+      parameters:
+        - $ref: "#/parameters/label_id"      
+      responses:
+        204:
+          description: Deleted
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+          
+    x-swagger-router-controller: Procedures              
+    
+  /procedures/import:
+    post:
+      tags:
+        - Procedures
+      description: Import procedure, versions, elements and edges
+      operationId: import_procedure_versions
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - name: import_input
+          in: body
+          description: procedure, versions, elements and edges
+          required: false
+          schema:
+            $ref: "#/definitions/VersionsData"    
+      responses:
+        204:
+          description: Imported
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse" 
+    
+    x-swagger-router-controller: Procedures    
+    
+  /procedures/{procedure_id}:
+    get:
+      tags:
+        - Procedures
+      description: Get meta data of the working copy of the procedure
+      operationId: get_procedure
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+      responses:
+        200:
+          description: Success
+          schema:
+            $ref: "#/definitions/ProcedureInfo"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    patch:
+      tags:
+        - Procedures
+      description: Update meta data of the working copy of the procedure
+      operationId: update_procedure
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - name: procedure_meta_data
+          in: body
+          description: meta data of procedure
+          required: true
+          schema:
+            $ref: "#/definitions/ProcedureUpdateInput"         
+      responses:
+        204:
+          description: Updated
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"     
+            
+    delete:
+      tags:
+        - Procedures
+      description: Delete the procedure and its all versions
+      operationId: delete_procedure
+      security:
+        - UserSecurity: ["admin"]         
+      parameters:
+        - $ref: "#/parameters/procedure_id"      
+      responses:
+        204:
+          description: Deleted
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    
+    x-swagger-router-controller: Procedures              
+
+  /procedures/{procedure_id}/versions:
+    post:
+      tags:
+        - ProcedureVersions
+      description: Create a new version from the current working copy
+      operationId: create_version    
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - name: version_meta_data
+          in: body
+          description: meta data of version
+          required: true
+          schema:
+            $ref: "#/definitions/ProcedureVersionInput"         
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/ProcedureVersionInfo"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    get:
+      tags:
+        - ProcedureVersions
+      description: |
+        Get a list of versions. List is sorted by time versioned (latest first).
+      operationId: get_versions
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"
+        - $ref: "#/parameters/sort"            
+        - $ref: "#/parameters/version_description"
+        - $ref: "#/parameters/institutional_release_id"          
+        - $ref: "#/parameters/version_author"
+        - name: status
+          in: query
+          description: filter based on version status
+          required: false
+          type: string
+          enum:
+            - VERSIONED
+            - SUBMITTED
+            - APPROVED
+            - RELEASED
+            - OBSOLETE
+        - name: sort_by
+          in: query
+          description: sort by this parameter
+          required: false
+          type: string
+          enum:
+            - TIME_VERSIONED
+            - TIME_RELEASED
+            - VERSION
+            - INSTITUTIONAL_RELEASE_ID
+            - API_VERSION
+            - FLIGHT_DICTIONARY_VERSION
+            - SSE_DICTIONARY_VERSION
+      responses:
+        200:
+          description: Success
+          headers:
+            x-total-count:
+              description: The total number of versions
+              type: integer    
+          schema:
+            type: array
+            title: ProcedureArray
+            items:
+              $ref: "#/definitions/ProcedureVersionInfo"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse" 
+            
+    x-swagger-router-controller: ProcedureVersions              
+    
+  /procedures/{procedure_id}/versions/{version}:
+    get:
+      tags:
+        - ProcedureVersions
+      description: Get meta data of version of the procedure
+      operationId: get_version
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/version"
+      responses:
+        200:
+          description: Success
+          schema:
+            $ref: "#/definitions/ProcedureVersionInfo"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    patch:
+      tags:
+        - ProcedureVersions
+      description: Update meta data of the version
+      operationId: update_version        
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/version"
+        - name: version_meta_data
+          in: body
+          description: meta data of version
+          required: true
+          schema:
+            $ref: "#/definitions/ProcedureVersionUpdateInput"         
+      responses:
+        200:
+          description: Updated version info
+          schema:
+            $ref: "#/definitions/ProcedureVersionInfo"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"     
+            
+    delete:
+      tags:
+        - ProcedureVersions
+      description: Delete the version 
+      operationId: delete_version
+      security:
+        - UserSecurity: ["admin"]                        
+      parameters:
+        - $ref: "#/parameters/procedure_id"  
+        - $ref: "#/parameters/version"
+      responses:
+        204:
+          description: Deleted
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    
+    x-swagger-router-controller: ProcedureVersions       
+  
+  /procedures/{procedure_id}/versions/{version}/status:
+    post:
+      tags:
+        - ProcedureVersions
+      description: Update status of the version
+      operationId: update_version_status
+      security:
+        - UserSecurity: ["author", "imcm", "admin", "test_lead"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/version"
+        - name: version_status_input
+          in: body
+          description: version status input
+          required: true
+          schema:
+            $ref: "#/definitions/ProcedureVersionStatusInput"
+      responses:
+        200:
+          description: Updated version info
+          schema:
+            $ref: "#/definitions/ProcedureVersionInfo"          
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"     
+
+    x-swagger-router-controller: ProcedureVersions
+    
+  /procedures/{procedure_id}/versions/{version}/structure:
+    get:
+      tags:
+        - ProcedureVersions
+      description: "Get hierarchical view of the version of the procedure"
+      operationId: "get_version_structure"
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/version"
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"
+        - $ref: "#/parameters/sort"   
+      responses:
+        200:
+          description: "A list of nested procedure elements. Note: the spec is correct but Swagger UI will show undefined since it does not handle recursive data structure."
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer            
+          schema:
+            $ref: "#/definitions/ProcedureStructure"
+              
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    
+    x-swagger-router-controller: ProcedureVersions             
+    
+  /procedures/{procedure_id}/versions/{version}/outline:
+    get:
+      tags:
+        - ProcedureVersions
+      description: "Get outline view of the version of the procedure"
+      operationId: "get_version_outline"
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/version"
+        - name: tag_ids
+          in: query
+          type: string
+          description: comma separated list of ids of tags selected
+          required: false            
+            
+      responses:
+        200:
+          description: "Outline elements"
+          schema:
+            type: "array"
+            title: "elements"
+            items:
+              $ref: "#/definitions/ReferenceProcedureElement"   
+              
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    
+    x-swagger-router-controller: ProcedureVersions 
+    
+  /procedures/{procedure_id}/versions/{version}/elements:
+    get:
+      tags:
+        - ProcedureVersions
+      description: "Get elements of the version of the procedure"
+      operationId: "get_version_elements"
+      parameters:
+        - $ref: "#/parameters/procedure_id" 
+        - $ref: "#/parameters/version"
+        - $ref: "#/parameters/elem_type"      
+        - $ref: "#/parameters/step_type"
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"
+        - $ref: "#/parameters/sort"
+        - $ref: "#/parameters/description"
+        - $ref: "#/parameters/all_elements"                
+        - $ref: "#/parameters/comment_filter"
+      responses:
+        200:
+          description: "Array of elements matching given query"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer            
+          schema:
+            type: "array"
+            title: "elements"
+            items:
+              $ref: "#/definitions/ProcedureElement"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    
+    x-swagger-router-controller: ProcedureVersions    
+    
+  /procedures/{procedure_id}/versions/{version}/elements/{elem_id}/conversations:
+    post:
+      tags:
+        - ProcedureComment
+      description: Add a conversation to an element
+      operationId: procedure_element_add_conversation
+      security:
+        - UserSecurity: ["basic"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/version"      
+        - $ref: "#/parameters/elem_id"
+        - name: conversation
+          in: body
+          description: conversation to add
+          required: true
+          schema:
+            $ref: "#/definitions/ProcedureConversationInput"
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/ProcedureConversation"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    get:
+      tags:
+        - ProcedureComment
+      description: Get a list of conversations for an element. List is ordered by the creation date (ascending order).
+      operationId: procedure_element_get_conversations
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/version"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/offset"
+        - $ref: "#/parameters/limit"
+        - $ref: "#/parameters/sort"
+      responses:
+        200:
+          description: "Success"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer
+          schema:
+            type: array
+            title: conversations
+            items:
+              $ref: "#/definitions/ProcedureConversation"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    x-swagger-router-controller: ProcedureComment
+    
+  /procedures/{procedure_id}/versions/{version}/elements/{elem_id}/conversations/{conversation_id}:
+    get:
+      tags:
+        - ProcedureComment
+      description: Get a conversation of an element"
+      operationId: procedure_element_get_conversation
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/version"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/ProcedureConversation"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    patch:
+      tags:
+        - ProcedureComment
+      description: Update a conversation of an element"
+      operationId: procedure_element_update_conversation
+      security:
+        - UserSecurity: ["basic"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/version"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+        - name: conversation
+          in: body
+          description: conversation to update
+          required: true
+          schema:
+            $ref: "#/definitions/ProcedureConversationInput"
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/ProcedureConversation"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    delete:
+      tags:
+        - ProcedureComment
+      description: "Delete a conversation"
+      operationId: procedure_element_delete_conversation
+      security:
+        - UserSecurity: ["basic"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/version"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+      responses:
+        204:
+          description: "Deleted"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    x-swagger-router-controller: ProcedureComment    
+    
+  /procedures/{procedure_id}/versions/{version}/elements/{elem_id}/conversations/{conversation_id}/comments:
+    post:
+      tags:
+        - ProcedureComment
+      description: Add a comment to an element
+      operationId: procedure_element_add_comment
+      security:
+        - UserSecurity: ["basic"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/version"  
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+        - name: comment
+          in: body
+          description: comment to add
+          required: true
+          schema:
+            $ref: "#/definitions/CommentInput"
+
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/Comment"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    get:
+      tags:
+        - ProcedureComment
+      description: Get a list of comments for an element. List is ordered by the creation date (ascending order).
+      operationId: procedure_element_get_comments
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/version" 
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+        - $ref: "#/parameters/offset"
+        - $ref: "#/parameters/limit"
+        - $ref: "#/parameters/sort"
+      responses:
+        200:
+          description: "Success"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer
+          schema:
+            type: array
+            title: comments
+            items:
+              $ref: "#/definitions/Comment"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    x-swagger-router-controller: ProcedureComment    
+                
+  /procedures/{procedure_id}/versions/{version}/elements/{elem_id}/conversations/{conversation_id}/comments/{comment_id}:
+    get:
+      tags:
+        - ProcedureComment
+      description: Get a comment of an element"
+      operationId: procedure_element_get_comment
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/version"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+        - $ref: "#/parameters/comment_id"
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/Comment"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    patch:
+      tags:
+        - ProcedureComment
+      description: Update a comment of an element"
+      operationId: procedure_element_update_comment
+      security:
+        - UserSecurity: ["basic"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/version"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+        - $ref: "#/parameters/comment_id"  
+        - name: comment
+          in: body
+          description: comment to update
+          required: true
+          schema:
+            $ref: "#/definitions/CommentInput"             
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/Comment"           
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"             
+    delete:
+      tags:
+        - ProcedureComment
+      description: "Delete a comment"
+      operationId: "procedure_element_delete_comment"
+      security:
+        - UserSecurity: ["basic"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/version"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+        - $ref: "#/parameters/comment_id"
+      responses:
+        204:
+          description: "Deleted"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    x-swagger-router-controller: ProcedureComment                
+
+  /procedures/{procedure_id}/versions/{version}/elements/{elem_id}/conversations/{conversation_id}/comments/{comment_id}/files:
+    get:
+      tags:
+        - ProcedureFile
+      description: Get a list of files attached to comments
+      operationId: procedure_element_get_comment_files
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/version"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+        - $ref: "#/parameters/comment_id"
+        - $ref: "#/parameters/offset"
+        - $ref: "#/parameters/limit"
+        - $ref: "#/parameters/sort"
+      responses:
+        200:
+          description: "Success"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer
+          schema:
+            type: array
+            title: files
+            items:
+              $ref: "#/definitions/FileInfo"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    post:
+      tags:
+        - ProcedureFile
+      description: Upload a file to an element comment
+      operationId: "procedure_element_post_comment_file"
+      security:
+        - UserSecurity: ["basic"]
+      consumes:
+        - multipart/form-data
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/version"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+        - $ref: "#/parameters/comment_id"
+        - name: file_metadata
+          in: body
+          description: Metadata to store about file
+          required: true
+          schema:
+            $ref: "#/definitions/FileInfo"
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/FileInfo"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    x-swagger-router-controller: ProcedureFile
+    
+  /procedures/{procedure_id}/versions/{version}/elements/{elem_id}/conversations/{conversation_id}/comments/{comment_id}/files/{file_id}:
+    get:
+      tags:
+        - ProcedureFile
+      description: get a files meta data
+      operationId: procedure_element_get_comment_file
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/version"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+        - $ref: "#/parameters/comment_id"
+        - $ref: "#/parameters/file_id"  
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/FileInfo"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    delete:
+      tags:
+        - ProcedureFile
+      description: "Delete a file"
+      operationId: "procedure_element_delete_comment_file"
+      security:
+        - UserSecurity: ["basic"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/version"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/conversation_id"
+        - $ref: "#/parameters/comment_id"
+        - $ref: "#/parameters/file_id"
+      responses:
+        204:
+          description: "Deleted"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    x-swagger-router-controller: ProcedureFile
+        
+            
+  /procedures/{procedure_id}/elements:
+    get:
+      tags:
+      - Procedure
+      description: Get elements of the specified type from procedure. List is sorted by the order in the procedure.
+      operationId: procedure_get_elements
+      parameters:
+        - $ref: "#/parameters/procedure_id" 
+        - $ref: "#/parameters/elem_type"      
+        - $ref: "#/parameters/step_type"
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"
+        - $ref: "#/parameters/sort"
+        - $ref: "#/parameters/description"                
+      responses:
+        200:
+          description: "Array of elements matching given query"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer            
+          schema:
+            type: "array"
+            title: "elements"
+            items:
+              $ref: "#/definitions/ProcedureElement"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"    
+ 
+    patch:
+      tags:
+      - Execution
+      description: Update elements
+      operationId: procedure_update_elements        
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"        
+        - name: elems_input
+          in: body
+          description: elements to be updated
+          required: true
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/ProcedureElement"   
+      responses:
+        200:
+          description: updated elements       
+          schema:
+            type: "array"
+            title: "elements"
+            items:
+              $ref: "#/definitions/ProcedureElement"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"                          
+    x-swagger-router-controller: Procedure                            
+            
+  /procedures/{procedure_id}/elements/move:
+    post:
+      tags:
+      - Procedure
+      description: Move elements and their children to another location in procedure
+      operationId: procedure_move_element  
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - name: move_element_input
+          in: body
+          schema:
+            $ref: "#/definitions/MoveElementInput"
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/MoveElementsResponse"            
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"    
+
+    x-swagger-router-controller: Procedure         
+
+  /procedures/{procedure_id}/elements/copy:
+    post:
+      tags:
+      - Procedure
+      description: Copy elements and their children to another location in procedure
+      operationId: procedure_copy_element       
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - name: copy_element_input
+          in: body
+          schema:
+            $ref: "#/definitions/CopyElementInput"               
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/CopyElementResponse"            
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"    
+    
+    x-swagger-router-controller: Procedure          
+
+  /procedures/{procedure_id}/elements/{elem_id}:    
+    get:
+      tags:
+        - Procedure
+      description: Get an element in procedure
+      operationId: procedure_get_element
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/elem_id"           
+      responses:
+        200:
+          description: "Get element"
+          schema:
+            $ref: "#/definitions/ProcedureElement"           
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse" 
+    patch:
+      tags:
+        - Procedure
+      description: Update an element in procedure
+      operationId: procedure_update_element      
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/elem_id"
+        - name: elem_input
+          in: body
+          description: element data to update
+          required: true
+          schema:
+            $ref: "#/definitions/ProcedureElement"            
+      responses:
+        200:
+          description: "Updated element"
+          schema:
+            $ref: "#/definitions/ProcedureElement"           
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"            
+    delete:
+      tags:
+        - Procedure
+      description: Delete an element in procedure
+      operationId: procedure_delete_element      
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/elem_id"      
+      responses:
+        200:
+          description: "Deleted"
+          schema:
+            $ref: "#/definitions/ElementsNumberResponse"           
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"                  
+    
+    x-swagger-router-controller: Procedure       
+            
+  /procedures/{procedure_id}/elements/{elem_id}/replace:
+    post:
+      tags:
+        - Procedure
+      description: "Replace an element of procedure"
+      operationId: "procedure_replace_element"
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/elem_id"
+        - name: replace_element_input
+          in: body
+          description: element info to replace the current element
+          required: true
+          schema:
+            $ref: "#/definitions/ReplaceElementInput"
+      responses:
+        200:
+          description: "Updated element"
+          schema:
+            $ref: "#/definitions/ProcedureElement" 
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse" 
+
+    x-swagger-router-controller: Procedure       
+
+  /procedures/{procedure_id}/elements/{elem_id}/tags:
+    post:
+      tags:
+        - Procedure
+      description: Apply a tag to an element
+      operationId: procedure_element_apply_tag
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/elem_id"
+        - name: tag_id
+          in: query
+          description: id of tag
+          type: string
+          required: true                 
+      responses:
+        200:
+          description: "Updated tags of elements"
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/ElementTags'         
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"       
+            
+    x-swagger-router-controller: Procedure       
+    
+  /procedures/{procedure_id}/elements/{elem_id}/tags/{tag_id}:
+    delete:
+      tags:
+        - Procedure
+      description: Remove a tag from an element
+      operationId: procedure_element_remove_tag
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/tag_id"               
+      responses:
+        200:
+          description: "Updated tags of elements"
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/ElementTags'         
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+            
+    x-swagger-router-controller: Procedure
+            
+  /procedures/{procedure_id}/structure:
+    get:
+      tags:
+        - Procedure
+      description: "Get hierarchical view of procedure"
+      operationId: "procedure_get_structure"
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"
+        - $ref: "#/parameters/sort"        
+      responses:
+        200:
+          description: "A list of nested procedure elements. Note: the spec is correct but Swagger UI will show undefined since it does not handle recursive data structure."
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer            
+          schema:
+            $ref: "#/definitions/ProcedureStructure"
+              
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    
+    x-swagger-router-controller: Procedure      
+
+  /procedures/{procedure_id}/load:
+    post:
+      tags:
+        - Procedure
+      description: Reload the working copy
+      operationId: load_working_copy        
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id" 
+        - name: procedure_info
+          in: body
+          description: load the version of the procedure specified.
+          required: true
+          schema:
+            type: object
+            properties:
+              procedure_id:
+                description: The id of the procedure to load
+                type: string               
+              version:
+                description: The version to load
+                type: integer                 
+      responses:
+        204:
+          description: Working copy was reloaded
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    
+    x-swagger-router-controller: Procedure
+    
+  # Used when importing json data of procedure.
+  /procedures/{procedure_id}/import:
+    post:
+      tags:
+        - Procedure
+      description: Import a procedure version into the working copy. The working copy will be replaced.
+      operationId: import_procedure_version         
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - name: procedure_version_data
+          in: body
+          description: procedure version data
+          required: true
+          schema:
+            $ref: "#/definitions/ProcedureStructure"    
+      responses:
+        204:
+          description: Imported
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    x-swagger-router-controller: Procedure       
+
+  /procedures/{procedure_id}/export_versions:
+    get:
+      tags:
+        - Procedure
+      description: Get procedure, versions, elements and edges
+      operationId: "export_procedure_versions"
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - name: version
+          in: query
+          type: integer
+          description: version to export
+          required: false
+        - name: released_only
+          in: query
+          type: boolean
+          description: export only released versions  
+          required: false
+      responses:
+        200:
+          description: procedure, versions, elements and edges
+          schema:
+            $ref: "#/definitions/VersionsData"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    
+    x-swagger-router-controller: Procedure
+    
+  /procedures/{procedure_id}/tags:
+    post:
+      tags:
+        - Procedure
+      description: Create a tag for procedure
+      operationId: procedure_create_tag        
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - name: tag_input
+          in: body
+          description: tag input
+          required: true
+          schema:
+            $ref: "#/definitions/TagInput"    
+      responses:
+        200:
+          description: Updated tags of the working version of the procedure
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Tag'
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+            
+    x-swagger-router-controller: Procedure              
+            
+  /procedures/{procedure_id}/tags/{tag_id}:             
+    patch:
+      tags:
+        - Procedure
+      description: Update a tag
+      operationId: procedure_update_tag         
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/tag_id"
+        - name: tag_input
+          in: body
+          description: tag input
+          required: true
+          schema:
+            $ref: "#/definitions/TagInput"    
+      responses:
+        200:
+          description: Updated tags of the working version of the procedure
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Tag'
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    delete:
+      tags:
+        - Procedure
+      description: Delete a tag from procedure
+      operationId: procedure_delete_tag         
+      security:
+        - UserSecurity: ["author"]      
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/tag_id"   
+      responses:
+        200:
+          description: Updated tags of the working version of the procedure and impacted elements
+          schema:
+            $ref: '#/definitions/DeleteTagResponse'
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"   
+
+    x-swagger-router-controller: Procedure           
+
+  /procedures/{procedure_id}/steps:
+    post:
+      tags:
+        - ProcedureStep
+      description: Create a step
+      operationId: procedure_create_step
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/insert_after_id"
+        - $ref: "#/parameters/level"
+        - name: step
+          in: body
+          description: step definition including its type
+          required: true
+          schema:
+            $ref: "#/definitions/Step"       
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/AddStepResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    get:
+      tags:
+        - ProcedureStep
+      description: Get steps of the procedure. List is sorted by the order in the procedure.
+      operationId: procedure_get_steps
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"      
+        - $ref: "#/parameters/sort"
+        - $ref: "#/parameters/description"                
+      responses:
+        200:
+          description: "Success"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer              
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Step'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    
+    x-swagger-router-controller: ProcedureStep               
+        
+  /procedures/{procedure_id}/steps/{elem_id}:    
+    get:
+      tags:
+        - ProcedureStep
+      description: "Get step definition"
+      operationId: "procedure_get_step"
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/elem_id"      
+      responses:
+        200:
+          description: "Success"
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Step'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"    
+            
+    patch:
+      tags:
+        - ProcedureStep
+      description: Update a step
+      operationId: procedure_update_step  
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/elem_id"
+        - name: step
+          in: body
+          description: Definition of step
+          required: true
+          schema:
+            $ref: "#/definitions/Step"  
+      responses:
+        200:
+          description: "Updated element"
+          schema:
+            $ref: "#/definitions/Step"           
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"  
+            
+    x-swagger-router-controller: ProcedureStep     
+            
+  /procedures/{procedure_id}/steps/{elem_id}/input:
+    get:
+      tags:
+        - ProcedureStep
+      description: Get user input of a step (authoring time)
+      operationId: procedure_get_step_input
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/elem_id"
+      responses:
+        200:
+          description: User input of the step
+          schema:
+            type: object
+            
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"       
+    post:
+      tags:
+        - ProcedureStep
+      description: Update user input of a step (authoring time)
+      operationId: procedure_update_step_input
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/elem_id"
+        - name: user_input
+          in: body
+          description: User input values
+          required: true
+          schema: 
+            type: object
+      responses:
+        204:
+          description: "Updated"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"  
+            
+    x-swagger-router-controller: ProcedureStep               
+    
+  /procedures/{procedure_id}/elements/{elem_id}/files:
+    post:
+      tags:
+        - ProcedureFile
+      description: Upload a file to a procedure element
+      operationId: procedure_element_upload_file          
+      security:
+        - UserSecurity: ["author"]
+      consumes:
+        - multipart/form-data      
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/elem_id"
+        - name: file_name
+          in: query
+          description: file name
+          required: false
+          type: string
+        - name: file_metadata
+          in: body
+          description: Metadata to store about file
+          required: true
+          schema:
+            $ref: "#/definitions/FileInfo"      
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/FileInfo"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"  
+    get:
+      tags:
+        - ProcedureFile
+      description: Get a list of attached files for a procedure element. List is ordered by the creation date (ascending order).
+      operationId: "procedure_element_get_files"
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/elem_id"
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"     
+        - $ref: "#/parameters/sort"
+      responses:
+        200:
+          description: "Success"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer            
+          schema:
+            type: array
+            title: comments
+            items:
+              $ref: "#/definitions/FileInfo" 
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"   
+            
+    x-swagger-router-controller: ProcedureFile            
+            
+  /procedures/{procedure_id}/elements/{elem_id}/files/{file_id}:
+    get:
+      tags:
+        - ProcedureFile
+      description: "Download a list of attached files for a procedure element"
+      operationId: "procedure_element_get_file"
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/elem_id"     
+        - $ref: "#/parameters/file_id"
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/FileInfo"             
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"      
+    delete:
+      tags:
+        - ProcedureFile
+      description: "Delete an attached file"
+      operationId: "procedure_element_delete_file"     
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/elem_id"     
+        - $ref: "#/parameters/file_id"       
+      responses:
+        204:
+          description: "Deleted"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+            
+    x-swagger-router-controller: ProcedureFile                        
+
+  /procedures/{procedure_id}/files:
+    post:
+      tags:
+        - ProcedureFile
+      description: Upload a file to a procedure
+      operationId: procedure_upload_file    
+      security:
+        - UserSecurity: ["author"]    
+      consumes:
+        - multipart/form-data      
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - name: file_name
+          in: query
+          description: file name
+          required: false
+          type: string
+        - name: file_metadata
+          in: body
+          description: Metadata to store about file
+          required: true
+          schema:
+            $ref: "#/definitions/FileInfo"       
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/FileInfo"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"  
+    get:
+      tags:
+        - ProcedureFile
+      description: Get a list of attached files for a procedure. List is ordered by the creation date (ascending order).
+      operationId: "procedure_get_files"
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"     
+        - $ref: "#/parameters/sort"
+      responses:
+        200:
+          description: "Success"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer            
+          schema:
+            type: array
+            title: comments
+            items:
+              $ref: "#/definitions/FileInfo" 
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"   
+            
+    x-swagger-router-controller: ProcedureFile            
+            
+  /procedures/{procedure_id}/files/{file_id}:
+    get:
+      tags:
+        - ProcedureFile
+      description: "Download a list of attached files for a procedure"
+      operationId: "procedure_get_file"
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/file_id"
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/FileInfo"             
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"      
+    delete:
+      tags:
+        - ProcedureFile
+      description: "Delete an attached file"
+      operationId: "procedure_delete_file"   
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/file_id"       
+      responses:
+        204:
+          description: "Deleted"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+            
+    x-swagger-router-controller: ProcedureFile
+
+  /procedures/{procedure_id}/sections:
+    post:
+      tags:
+        - ProcedureSection
+      description: Create a section
+      operationId: procedure_create_section
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/insert_after_id"
+        - $ref: "#/parameters/level" 
+        - name: section
+          in: body
+          description: section definition 
+          required: true
+          schema:
+            $ref: "#/definitions/Section"          
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/AddSectionResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    get:
+      tags:
+        - ProcedureSection
+      description: Get sections of the procedure. List is sorted by the order in the procedure.
+      operationId: procedure_get_sections
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"    
+        - $ref: "#/parameters/sort"
+        - $ref: "#/parameters/description"          
+      responses:
+        200:
+          description: "Success"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer            
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Section'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"  
+            
+    x-swagger-router-controller: ProcedureSection                   
+            
+  /procedures/{procedure_id}/sections/{elem_id}:
+    get:
+      tags:
+        - ProcedureSection
+      description: "Get section definition"
+      operationId: "procedure_get_section"
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/elem_id"      
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: '#/definitions/Section'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"       
+    patch:
+      tags:
+        - ProcedureSection
+      description: Update a section
+      operationId: procedure_update_section      
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/elem_id"
+        - name: section
+          in: body
+          description: Definition of section
+          required: true          
+          schema:
+            $ref: "#/definitions/Section"  
+      responses:
+        200:
+          description: "Updated element"
+          schema:
+            $ref: "#/definitions/Section"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"   
+            
+    x-swagger-router-controller: ProcedureSection              
+    
+  /procedures/{procedure_id}/procedure_sections:
+    post:
+      tags:
+        - ProcedureProcSection
+      description: Create a procedure section
+      operationId: procedure_create_procedure_section    
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/insert_after_id"
+        - $ref: "#/parameters/level" 
+        - name: procedure_section
+          in: body
+          description: procedure section definition 
+          required: true
+          schema:
+            $ref: "#/definitions/ProcedureSection"          
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/AddProcedureSectionResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    get:
+      tags:
+        - ProcedureProcSection
+      description: Get procedure sections of the procedure. List is sorted by the order in the procedure.
+      operationId: procedure_get_procedure_sections
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"    
+        - $ref: "#/parameters/sort"
+        - $ref: "#/parameters/description"          
+      responses:
+        200:
+          description: "Success"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer            
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/ProcedureSection'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"  
+            
+    x-swagger-router-controller: ProcedureProcSection                   
+            
+  /procedures/{procedure_id}/procedure_sections/{elem_id}:
+    get:
+      tags:
+        - ProcedureProcSection
+      description: "Get procedure section definition"
+      operationId: "procedure_get_procedure_section"
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/elem_id"      
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: '#/definitions/ProcedureSection'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"       
+    patch:
+      tags:
+        - ProcedureProcSection
+      description: Update a procedure section
+      operationId: procedure_update_procedure_section  
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/elem_id"
+        - name: procedure_section
+          in: body
+          description: Definition of procedure section
+          required: true          
+          schema:
+            $ref: "#/definitions/ProcedureSection"  
+      responses:
+        200:
+          description: "Updated element"
+          schema:
+            $ref: "#/definitions/ProcedureSection" 
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"   
+            
+    x-swagger-router-controller: ProcedureProcSection                            
+
+  /procedures/{procedure_id}/procedure_sections/{elem_id}/input:
+    get:
+      tags:
+        - ProcedureProcSection
+      description: Get user input of a procedure section (authoring)
+      operationId: procedure_get_procedure_section_input
+      parameters:
+        - $ref: "#/parameters/procedure_id"      
+        - $ref: "#/parameters/elem_id"
+      responses:
+        200:
+          description: User input of the procedure section
+          schema:
+            $ref: "#/definitions/ProcedureSectionInput"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"       
+    post:
+      tags:
+        - ProcedureProcSection
+      description: Update user input of a procedure section
+      operationId: procedure_update_procedure_section_input        
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"            
+        - $ref: "#/parameters/elem_id"
+        - name: user_input
+          in: body
+          description: User input values
+          required: true
+          schema: 
+            $ref: "#/definitions/ProcedureSectionInput"
+      responses:
+        204:
+          description: "Updated"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"  
+    x-swagger-router-controller: ProcedureProcSection 
+    
+  /procedures/{procedure_id}/procedure_sections/{elem_id}/structure:
+    get:
+      tags:
+        - ProcedureProcSection
+      description: Get structure of the selected procedure elements
+      operationId: procedure_get_procedure_section_structure
+      parameters:
+        - $ref: "#/parameters/procedure_id"          
+        - $ref: "#/parameters/elem_id"   
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: "#/definitions/ProcedureStructure"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"   
+            
+    x-swagger-router-controller: ProcedureProcSection   
+
+  /procedures/{procedure_id}/procedure_sections/{elem_id}/elements:
+    get:
+      tags:
+        - ProcedureProcSection
+      description: Get the selected elements of procedure
+      operationId: procedure_get_procedure_section_elements
+      parameters:
+        - $ref: "#/parameters/procedure_id"          
+        - $ref: "#/parameters/elem_id"      
+      responses:
+        200:
+          description: "Success"
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/ProcedureElement'           
+            description: selected elements
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse" 
+            
+    x-swagger-router-controller: ProcedureProcSection         
+                
+  /procedures/{procedure_id}/paragraphs:
+    post:
+      tags:
+        - ProcedureParagraph
+      description: Create a paragraph
+      operationId: procedure_create_paragraph    
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/insert_after_id" 
+        - $ref: "#/parameters/level"    
+        - name: paragraph
+          in: body
+          description: paragraph definition 
+          required: true
+          schema:
+            $ref: "#/definitions/Paragraph"         
+      responses:
+        200:
+          description: Created
+          schema:
+            $ref: "#/definitions/AddParagraphResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    get:
+      tags:
+        - ProcedureParagraph
+      description: Get paragraphs of the execution. List is sorted by the order in the execution.
+      operationId: procedure_get_paragraphs
+      parameters:
+        - $ref: "#/parameters/procedure_id"   
+        - $ref: "#/parameters/offset"      
+        - $ref: "#/parameters/limit"
+        - $ref: "#/parameters/sort"
+        - $ref: "#/parameters/description"          
+      responses:
+        200:
+          description: "Success"
+          headers:
+            x-total-count:
+              description: The total number of resources
+              type: integer            
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Paragraph'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"     
+            
+    x-swagger-router-controller: ProcedureParagraph               
+            
+  /procedures/{procedure_id}/paragraphs/{elem_id}:
+    get:
+      tags:
+        - ProcedureParagraph
+      description: "Get paragraph definition"
+      operationId: "procedure_get_paragraph"
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/elem_id"      
+      responses:
+        200:
+          description: "Success"
+          schema:
+            $ref: '#/definitions/Paragraph'
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"       
+    patch:
+      tags:
+        - ProcedureParagraph
+      description: Update a paragraph
+      operationId: procedure_update_paragraph
+      security:
+        - UserSecurity: ["author"]
+      parameters:
+        - $ref: "#/parameters/procedure_id"
+        - $ref: "#/parameters/elem_id"
+        - name: paragraph
+          in: body
+          description: Definition of paragraph
+          required: true
+          schema:
+            $ref: "#/definitions/Paragraph"  
+      responses:
+        200:
+          description: "Updated element"
+          schema:          
+            $ref: "#/definitions/Paragraph"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"     
+            
+    x-swagger-router-controller: ProcedureParagraph           
+
+  /logging:
+    get:
+      tags:
+        - Logging
+      operationId: "get_logging"
+      responses:
+        200:
+          description: "Logging status info"
+          schema:
+            $ref: "#/definitions/LoggingInfo"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    
+    post:
+      tags:
+        - Logging
+      description: Update logging status
+      operationId: update_logging
+      security:
+        - UserSecurity: ["admin"]             
+      parameters:
+        - name: logging_info
+          in: body
+          description: Logging info
+          required: true
+          schema:
+            $ref: "#/definitions/LoggingInfo" 
+      responses:
+        204:
+          description: "Updated"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"  
+            
+    x-swagger-router-controller: Logging  
+    
+  /health:
+    get:
+      tags:
+      - Health
+      operationId: "health_get"
+      security:
+        - UserSecurity: []    # Override so that no security is required.         
+      parameters: []
+      responses:
+        200:
+          description: "Received service status"
+          schema:
+            $ref: "#/definitions/HealthStatus"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    
+    x-swagger-router-controller: Health          
+
+definitions:
+
+  ProcedureSimpleElement:
+    properties:
+      elem_id:
+        type: string
+        description: The unique identifier of the element  
+      number:
+        type: string
+        description: element number in procedure or execution        
+      title:
+        type: string
+      elem_type:
+        type: string
+        description: Type of the element        
+        enum:   
+        - SECTION
+        - PROCEDURE_SECTION
+        - PARAGRAPH
+        - STEP
+      executable:
+        type: string
+        description: type of execution supported for the element
+        enum:
+          - EXECUTED
+          - COMPUTED
+          - NONE    
+      break_point:
+        type: string
+        description: stop automatic execution when reaching this element
+        enum:
+          - NONE
+          - ACTIVE
+          - INACTIVE       
+      parent_id:
+        type: string
+        description: id of the parent element. empty string for elements that are direct children of execution or procedure 
+      procedure_section_id:
+        type: string
+        description: id of the procedure section to which this element belongs. Empty string if none.
+      procedure_modification_status:
+        type: string
+        description: |
+          whether any redline/blueline is associated with the element
+          * `NONE` - Not under run for score
+          * `ORIGINAL` - Original from procedure
+          * `MODIFIED` - Replaced by a redline
+          * `MODIFYING` - Redline/blueline element that replaces the original element
+          * `MODIFYING_OLD` - A modifying element that has been overtaken by another modifying element 
+          * `DELETED` - Redlined/bluelined by deletion
+          * `ADDED` - Redlined/bluelined by addition
+        enum:
+          - NONE
+          - ORIGINAL
+          - MODIFIED
+          - MODIFYING
+          - MODIFYING_OLD
+          - DELETED
+          - ADDED                               
+      procedure_modification:
+        $ref: '#/definitions/ProcedureModification'
+
+  ProcedureElement:
+    allOf:
+    - $ref: '#/definitions/ProcedureSimpleElement'
+    - type: object    
+      properties:
+        procedure_id:
+          type: string
+          description: id of the procedure to which the element belongs (empty string for elements of execution without procedure)        
+        procedure_title:
+          type: string
+          description: title of the procedure to which this element belongs. Empty string if none.
+        executed:
+          type: boolean
+          description: true if this element has been executed
+        verifiable:
+          type: boolean
+          description: true if this element has pass/fail status                            
+        run_for_score:
+          type: boolean         
+          description: true if this element is a part of run for score procedure        
+        execution_id:
+          type: string
+          description: id of the execution to which the element belongs (empty string for elements of procedure)
+        description:
+          type: string
+        files:
+          type: array
+          items:
+            $ref: '#/definitions/FileInfo'    
+        conversations:
+          type: array
+          items:
+            $ref: '#/definitions/Conversation'
+        tag_ids:
+          description: applied tags
+          type: array
+          items:
+            type: string                          
+  
+  FileInfo:
+    type: object
+    description: Meta data of an attached file
+    properties:
+      file_id:
+        type: string
+        description: unique id of the file resource
+      file_name:
+        type: string
+        description: original name of the file   
+      url:
+        type: string
+        description: download url of the file
+
+  ProcedureConversationInput:
+    properties:
+      type:
+        type: string
+        description: type of comment
+        enum:   
+        - COMMENT
+      status:
+        description: status of this conversation
+        type: string
+        enum:   
+        - UNRESOLVED
+        - RESOLVED        
+
+  ProcedureConversation:
+    allOf:
+    - $ref: '#/definitions/ProcedureConversationInput'
+    - type: object    
+      properties:
+        conversation_id:  
+          type: string
+          description: id of the conversation
+        time_resolved:
+          description: Time the conversation was resolved
+          type: string
+        resolved_by:
+          description: name of the user who resolved the conversation
+          type: string
+        comments:
+          type: array
+          items:
+            $ref: '#/definitions/Comment' 
+                    
+  ConversationInput:
+    properties:
+      type:
+        type: string
+        description: type of comment
+        enum:   
+        - COMMENT
+        - ACTIVITY_REPORT_COMMENT
+        - DATA_REVIEW_COMMENT
+      status:
+        description: status of this conversation
+        type: string
+        enum:   
+        - UNRESOLVED
+        - RESOLVED        
+
+  Conversation:
+    allOf:
+    - $ref: '#/definitions/ConversationInput'
+    - type: object    
+      properties:
+        conversation_id:  
+          type: string
+          description: id of the conversation
+        time_resolved:
+          description: Time the conversation was resolved
+          type: string
+        resolved_by:
+          description: name of the user who resolved the conversation
+          type: string
+        comments:
+          type: array
+          items:
+            $ref: '#/definitions/Comment' 
+            
+  CommentInput:
+    properties:
+      content:
+        type: string
+        description: comment text in HTML
+        
+  Comment:
+    allOf:
+    - $ref: '#/definitions/CommentInput'
+    - type: object    
+      properties:
+        comment_id:  
+          type: string
+          description: id of the comment    
+        time_updated:
+          description: Time the comment was created or updated
+          type: string     
+        user_name:
+          description: name of the user who commented
+          type: string
+        files:
+          type: array
+          items:
+            $ref: '#/definitions/FileInfo'        
+  
+
+  ProcedureModification:
+    description: modification from procedure and its status
+    properties:
+      justification:
+        $ref: '#/definitions/ModificationInfo' 
+      approval:
+        $ref: '#/definitions/ModificationApproval'
+
+  ModificationInfo:
+    description: information about procedure modification
+    properties:
+      modification_type: 
+        description: type of the modification
+        type: string
+        enum:   
+        - NONE
+        - REDLINE
+        - BLUELINE      
+      content:
+        type: string
+        description: comment text in HTML
+      user_name:
+        description: Name of the user
+        type: string 
+      time_updated:
+        description: Time the comment was created or updated
+        type: string   
+
+  ModificationApproval:
+    description: approval status of an element with procedure modifications
+    properties:
+      content:
+        type: string
+        description: comment text in HTML
+      user_name:
+        description: Name of the user who approved the modification 
+        type: string 
+      time_updated:
+        description: Time the modification was approved
+        type: string
+      status:                
+        description: approval status
+        type: string
+        enum:   
+        - PENDING
+        - APPROVED          
+
+  ProcedureElementNested:
+    allOf:
+    - $ref: '#/definitions/ProcedureElement'
+    - type: object
+      properties:
+        children:
+          type: array
+          items:
+            $ref: '#/definitions/ProcedureElementNested'           
+          description: child elements
+          
+  OutlineElement:
+    description: element data used for outline of procedure
+    properties:
+      elem_id:
+        type: string
+        description: id of the referenced element  
+      parent_id:
+        type: string
+        description: id of the parent element. empty string for elements that are direct children of execution or procedure            
+      number:
+        type: string
+        description: step or section number
+      title:
+        type: string
+        description: element title   
+      elem_type:
+        type: string
+        description: element type
+        enum:   
+        - SECTION
+        - PROCEDURE_SECTION
+        - PARAGRAPH
+        - STEP
+      tag_ids:
+        type: array
+        description: ids of applied tags
+        items:
+          type: string
+          
+  ReferenceProcedureElement:
+    description: element data used for outline of elements of subprocedure
+    allOf:
+    - $ref: '#/definitions/OutlineElement'
+    - type: object
+      properties:
+        selected:
+          type: boolean
+          description: whether the procedure element was selected for inclusion                
+
+  ExecutionAsRun:
+    allOf:
+    - $ref: '#/definitions/ExecutionInfo'
+    - type: object
+      properties:
+        children:
+          type: array
+          items:
+            $ref: '#/definitions/ProcedureElementNested'           
+          description: child elements     
+          
+  Step:
+    allOf:
+    - $ref: '#/definitions/ProcedureElement'
+    - type: object
+      properties:
+        step_type:
+          type: string
+          description: Type of the element        
+          enum:   
+            - MANUAL_INPUT
+            - MANUAL_EIP
+            - VENUE_CONFIG_MANUAL
+            - ENVIRONMENT_MANUAL
+            - GDS_MANUAL
+            - VERIFICATION_ITEM
+            - VERIFICATION_ITEM_STATUS
+            - GRAPH_EHA
+            - QUERY_EVR
+            - VERIFY_EHA     
+            - WAIT_EHA
+            - WAIT_EVR
+            - BUS_1553
+            - LIST_DATA_PRODUCTS
+            - WAIT_DATA_PRODUCTS
+            - CMD
+            - CMD_FILE
+            - CMD_SCMF     
+            - CMD_SSE  
+            - VENUE_CONFIG_GET
+            - VENUE_CONFIG_UPDATE
+            - VENUE_CONFIG_CHECK          
+            - MANUAL_VERIFICATION
+            - CUSTOM_SCRIPT
+            - ANALYSIS
+            - WAIT  
+            - TIME_REFERENCE
+            - TOC
+        variable:
+          $ref: "#/definitions/Variable"
+        code:
+          $ref: "#/definitions/Code"
+        guard:
+          type: string
+          description: guard condition
+        notices:
+          type: array
+          items:
+            $ref: "#/definitions/Notice"  
+            
+  StepWithRunRecords:
+    allOf:
+    - $ref: '#/definitions/Step'
+    - type: object
+      properties:
+        run_records:
+          description: |
+            list of previous runs of the step in the chronological order without including the latest, which is 
+            captured in the main body of the data model. Note that this data model is not explicitly used in 
+            API specs. But the following end points will use this record for step elements. 
+            /executions/{execution_id}/as_run
+            /executions/{execution_id}/elements
+          type: array
+          items:
+            $ref: '#/definitions/Step' 
+
+  Section:
+    allOf:
+    - $ref: '#/definitions/ProcedureElement'
+
+  ProcedureSection:
+    allOf:
+    - $ref: '#/definitions/Section'
+    - type: object
+      properties:
+        imported:
+          type: boolean
+          description: true if the referenced procedure has been imported                     
+        child_execution_id:
+          type: string
+          description: id of the execution for the referenced procedure. used for call procedure.        
+        authoring_user_input:
+          $ref: "#/definitions/ProcedureSectionInput"
+        execution_user_input:
+          $ref: "#/definitions/ProcedureSectionInput"
+          
+  ProcedureSectionInput:                    
+    properties:
+      callable:
+        type: boolean
+        description: true to execute the procedure in a new execution
+      run_for_score:
+        description: true if this is run for score
+        type: boolean
+      reference_procedure_id:
+        description: unique id of the procedure referenced
+        type: string
+      reference_procedure_title:
+        description: title of the procedure referenced
+        type: string          
+      reference_procedure_version:
+        description: Version of the procedure referenced
+        type: integer
+      reference_procedure_version_description:
+        description: Description of the version of the procedure referenced
+        type: string    
+      reference_procedure_institutional_id:
+        description: institutional id of the procedure referenced
+        type: string
+      reference_procedure_institutional_release_id:
+        description: institutional release id of the procedure referenced
+        type: string               
+      tag_selections:
+        type: array
+        items:
+          $ref: '#/definitions/TagSelection'           
+        description: selection status of procedure tags        
+      elements:
+        type: array
+        items:
+          $ref: '#/definitions/ReferenceProcedureElement'           
+        description: elements of the reference procedure
+            
+  Paragraph:
+    allOf:
+    - $ref: '#/definitions/ProcedureElement'    
+            
+  StepExecutionInfo:
+    properties:
+      test_conductor:
+        type: string
+        description: User id of the person who ran the step
+      time_started:
+        description: The time the step execution was started
+        type: string
+      time_completed:
+        description: The time the step execution was completed
+        type: string
+      time_updated:
+        description: The time the step execution status was updated
+        type: string           
+      status:
+        description: |
+          execution status of the step
+          * `PASS` - Step criteria passed
+          * `FAIL` - Step criteria failed
+          * `ERROR` - Error in execution
+          * `OVERRIDE_PASS` - Status was overriden from fail to pass
+          * `OVERRIDE_FAIL` - Status was overriden from pass to fail
+          * `RUNNING` - Step is currently running
+          * `SKIPPED` - Skipped since guard condition was not met
+          * `NONE` - Step execution has not been executed yet
+        type: string
+        enum:
+          - PASS
+          - FAIL
+          - ERROR
+          - OVERRIDE_PASS
+          - OVERRIDE_FAIL
+          - RUNNING
+          - SKIPPED
+          - NONE
+      status_message:    
+        description: additional description of the current status. Typically available for long running steps.
+        type: string              
+      override_justification:
+        description: Rationale of status override
+        type: string           
+      overridden_by:
+        description: User who overrode the status
+        type: string          
+      time_overridden:
+        description: The time when the step execution status was overridden
+        type: string
+      error:
+        $ref: "#/definitions/StepError"      
+
+  StepResult:
+    type: object
+    required:
+      - meta_data    
+    description: Results and meta data of a step execution
+    properties:
+      meta_data:
+        $ref: '#/definitions/StepExecutionInfo'    
+      results:
+        description: Step specific results
+        type: object
+
+  ElemIdAndNumber:
+    type: object      
+    description: element id and order number pair
+    properties:
+      elem_id:
+        description: element id
+        type: string
+      number:
+        description: number of an element
+        type: string
+      procedure_modification_status:
+        type: string
+        description: whether any redline/blueline is associated with the element
+        enum:
+          - NONE
+          - ORIGINAL
+          - MODIFIED
+          - MODIFYING
+          - MODIFYING_OLD
+          - DELETED
+          - ADDED         
+      procedure_modification:
+        $ref: '#/definitions/ProcedureModification'
+      run_for_score:  
+        description: true if this is run for score
+        type: boolean
+      procedure_section_id:
+        type: string
+        description: id of the procedure section to which this element belongs. Empty string if none.              
+      procedure_id:
+        type: string
+        description: unique id of procedure       
+      procedure_title:
+        type: string
+        description: title of the procedure to which this element belongs. Empty string if none.          
+    
+  Numbers: 
+    type: array
+    items:
+      $ref: "#/definitions/ElemIdAndNumber"    
+
+  ElemIds: 
+    type: array
+    description: id's of all elements according to the order in execution or procedure
+    items:
+      type: string         
+
+  ParentIds: 
+    type: array
+    description: parent id's of all elements according to the order in execution or procedure
+    items:
+      type: string
+
+  ModifyElementResponse:
+    type: object
+    properties:
+      elem:
+        $ref: "#/definitions/ProcedureElement"
+      numbers:
+        $ref: "#/definitions/Numbers"
+      elem_ids:
+        $ref: "#/definitions/ElemIds"         
+
+  DiscardElementResponse:
+    type: object
+    properties:
+      numbers:
+        $ref: "#/definitions/Numbers"
+      elem_ids:
+        $ref: "#/definitions/ElemIds"                
+            
+  AddStepResponse:
+    type: object
+    required:
+      - elem
+      - numbers
+    properties:
+      elem:
+        $ref: "#/definitions/Step"
+      numbers:
+        $ref: "#/definitions/Numbers"
+      elem_ids:
+        $ref: "#/definitions/ElemIds"             
+
+  AddSectionResponse:
+    type: object
+    required:
+      - elem
+      - numbers
+    properties:
+      elem:
+        $ref: "#/definitions/Section"
+      numbers:
+        $ref: "#/definitions/Numbers" 
+      elem_ids:
+        $ref: "#/definitions/ElemIds"        
+        
+  AddProcedureSectionResponse:
+    type: object
+    required:
+      - elem
+      - numbers
+    properties:
+      elem:
+        $ref: "#/definitions/ProcedureSection"
+      numbers:
+        $ref: "#/definitions/Numbers"
+      elem_ids:
+        $ref: "#/definitions/ElemIds"                 
+
+  AddParagraphResponse:
+    type: object
+    required:
+      - elem
+      - numbers
+    properties:
+      elem:
+        $ref: "#/definitions/Paragraph"
+      numbers:
+        $ref: "#/definitions/Numbers" 
+      elem_ids:
+        $ref: "#/definitions/ElemIds"        
+
+  ElementsNumberResponse:
+    type: object
+    properties:
+      numbers:
+        $ref: "#/definitions/Numbers"
+      elem_ids:
+        $ref: "#/definitions/ElemIds"         
+
+  MoveElementsResponse:
+    allOf:
+    - $ref: '#/definitions/ElementsNumberResponse'
+    - type: object
+      properties:
+        parent_ids:
+          $ref: "#/definitions/ParentIds"
+
+  CopyElementInput:
+    properties:
+      elem_ids:
+        description: ids of elements to copy
+        type: array
+        items:
+          type: string
+      insert_after_id:
+        description: unique id of the element after which element will be added/inserted. To insert at the front, use "-1".
+        type: string
+      level:
+        description: Add as a sibling or a child. If insert_after_id is "-1", level must be empty or "CHILD"
+        type: string
+        enum:
+          - SIBLING
+          - CHILD        
+      source_execution_id: 
+        description: id of the the execution of the source. This will take precedence over source_procedure_id
+        type: string
+      source_procedure_id:
+        description: id of the the procedure of the source. source_procedure_version must be provided as well
+        type: string
+      source_procedure_version:
+        description: version of the the procedure of the source. source_procedure_id must be provided as well
+        type: integer
+
+  CopyElementResponse:
+    properties:
+      elements:
+        description: the list of the copied element and its children        
+        type: array
+        items:
+          $ref: '#/definitions/ProcedureElement'           
+      numbers:
+        $ref: "#/definitions/Numbers"
+      elem_ids:
+        $ref: "#/definitions/ElemIds"                
+
+  MoveElementInput:
+    properties:
+      elem_ids:
+        description: ids of elements to move
+        type: array
+        items:
+          type: string
+      insert_after_id:
+        description: unique id of the element after which element will be added/inserted. To insert at the front, use "-1".
+        type: string
+      level:
+        description: Add as a sibling or a child. If insert_after_id is "-1", level must be empty or "CHILD"
+        type: string
+        enum:
+          - SIBLING
+          - CHILD
+
+  ReplaceElementInput:
+    properties:
+      execution_id:
+        description: id of the source execution
+        type: string
+      elem_id:
+        description: id of the source element
+        type: string
+        
+  ExecutionInfo:
+    type: object
+    properties:
+      execution_id:
+        description: Unique id of the execution
+        type: string        
+      parent_execution_id:
+        description: Unique id of the parent execution if this execution was created by call procedure
+        type: string
+      parent_procedure_section_id:
+        description: Unique id of the call procedure for this execution
+        type: string
+      description:
+        description: A high level description of the execution
+        type: string
+      activity_report_content:
+        description: input for activity report
+        type: string
+      data_review_content:
+        description: input for data review
+        type: string        
+      run_for_score:
+        description: true if the execution contains any procedure section that is run for record. This is set automatically when the execution is closed and should not be set from outside.
+        type: boolean   
+      url:
+        type: string
+        description: URL of the resource        
+      version:
+        description: Version of Ingenium that was used to create this execution
+        type: string
+      api_version:
+        description: Indicates the version of the Ingenium API used in the execution of this test
+        type: string
+      flight_dictionary_version:
+        description: The version of the flight dictionary selected for this execution
+        type: string    
+      sse_dictionary_version:
+        description: The version of the SSE dictionary selected for this execution
+        type: string         
+      test_conductors:
+        description: List of test conductors involved with the test. (First is the initiator of the test)
+        uniqueItems: true        
+        type: array
+        items:
+          type: string
+      participants:
+        description: List of users who can update inputs to step
+        uniqueItems: true        
+        type: array
+        items:
+          type: string
+      redline_approvers:
+        description: List of users who can approve redline/blueline changes
+        uniqueItems: true        
+        type: array
+        items:
+          type: string
+      observers:
+        description: List of users who observed the test
+        uniqueItems: true        
+        type: array
+        items:
+          type: string
+      time_started:
+        description: The time the test was started
+        type: string
+      time_completed:
+        description: The time the test was completed
+        type: string
+      venue_name:
+        description: The venue the test was executed on
+        type: string          
+      venue_id:
+        description: Id of the venue the test was executed on
+        type: string
+      mode:
+        description: execution mode
+        type: string
+        enum:
+          - MANUAL      
+          - AUTO
+      delay:
+        description: time in seconds to wait before executing the next step in AUTO mode    
+        type: integer          
+      pause_conditions:
+        description: conditions to pause automatic execution
+        type: object
+        properties:
+          on_fail:
+            description: pause if step execution fails
+            type: boolean        
+          on_error:
+            description: pause if step execution errors
+            type: boolean
+          on_section_end:
+            description: pause if the end of section is reached
+            type: boolean   
+          on_procedure_end:
+            description: pause if the end of procedure is reached
+            type: boolean        
+          on_manual_input:
+            description: pause if the next step requires manual input
+            type: boolean 
+          on_command:
+            description: pause if the next step is a fsw command or sse command step
+            type: boolean 
+          on_break_point:
+            description: pause if the next step has a break point
+            type: boolean                           
+      boundary_elem_id:
+          description: the next element that will stop the execution for AUTO mode.
+          type: string             
+      status:
+        description: Status of execution       
+        type: string
+        enum:
+          - RUNNING
+          - IDLE
+          - PAUSED
+          - HALTED
+          - SUSPENDED
+          - CLOSED
+          - IN_REVIEW          
+          - FINALIZED
+      transitions:
+        type: array
+        items:
+          $ref: '#/definitions/ExecutionTransitionInfo'                                             
+      files:
+        type: array
+        items:
+          $ref: '#/definitions/FileInfo'
+      current_step_id:
+        description: id of the current step       
+        type: string    
+      current_step_number:
+        description: number of the current step       
+        type: string
+      current_step_title:
+        description: title of the current step       
+        type: string    
+      current_procedure_id:
+        description: id of the current procedure
+        type: string    
+      current_procedure_title:
+        description: title of the current procedure      
+        type: string                      
+      num_steps_executed:
+        description: the number of steps executed
+        type: integer 
+      num_steps_passed:
+        description: the number of steps that passed
+        type: integer         
+      num_steps_failed:
+        description: the number of steps that failed
+        type: integer  
+      num_steps_errored:
+        description: the number of steps that errored
+        type: integer       
+      used_procedures:
+        # This field will be set when an execution is closed
+        description: procedures used in this execution
+        type: array
+        items:
+          type: object
+          properties:
+            procedure_id:
+              type: string
+              description: unique id of procedure
+            title:
+              type: string
+              description: title of procedure              
+            institutional_id:
+              description: Unique id of the procedure in institutional CM
+              type: string                           
+            version:
+              type: integer
+              description: procedure version   
+            institutional_release_id:
+              description: The corresponding release id in the institutional CM
+              type: string            
+            run_for_score:
+              type: boolean
+              description: true if run_for_score was true for the procedure                  
+      comment_conversations_count:
+        description: Number of general conversations
+        type: integer
+      unresolved_comment_conversations_count:
+        description: Number of unresolved general conversations
+        type: integer
+      ar_conversations_count:
+        description: Number of activity report conversations
+        type: integer
+      unresolved_ar_conversations_count:
+        description: Number of unresolved activity report conversations
+        type: integer
+      dr_conversations_count:
+        description: Number of data review conversations
+        type: integer
+      unresolved_dr_conversations_count:
+        description: Number of unresolved data review conversations
+        type: integer
+      conversations_count:
+        description: Number of conversations
+        type: integer
+      unresolved_conversations_count:
+        description: Number of unresolved conversations
+        type: integer
+  ExecutionInfoInput:
+    allOf:
+    - $ref: '#/definitions/ExecutionInfo'
+    required:
+    - venue_id        
+
+  DiscardInput:
+    description: input to discard elements
+    properties:
+      elem_ids:
+        description: ids of elements
+        type: array
+        items:
+          type: string
+
+  ExecutionTransitionInfo:
+    description: status transition of execution
+    properties:
+      time_updated:
+        description: Time the comment was created or updated
+        type: string     
+      user_name:
+        description: name of the user who commented
+        type: string
+      from_status:
+        description: status before the transition
+        type: string        
+        enum:        
+          - RUNNING
+          - IDLE
+          - PAUSED
+          - HALTED
+          - SUSPENDED
+          - CLOSED
+          - IN_REVIEW
+          - FINALIZED
+      to_status:
+        description: status after the transition
+        type: string        
+        enum:        
+          - RUNNING
+          - IDLE
+          - PAUSED
+          - HALTED
+          - SUSPENDED
+          - CLOSED
+          - IN_REVIEW
+          - FINALIZED
+      comment:
+        type: string
+        description: comment text in HTML               
+
+  ErrorResponse:
+    properties:
+      message:
+        type: string
+        description: error message
+        
+  StepError:
+    description: error during step execution
+    properties:
+      message:
+        type: string
+        description: short error message
+      details:
+        type: array        
+        description: details about the error that may include stack trace
+        items:
+          type: string  
+      error_type:
+        type: string        
+        description: type of the error
+        enum:
+        - USER_INPUT_ERROR
+        - INGENIUM_SERVICE_ERROR           
+        - EXTERNAL_SERVICE_ERROR
+        - DISPATCH_ERROR
+        - VERIFICATION_ERROR
+        - VENUE_SERVICE_ERROR
+        - QUERY_ERROR
+        - TIMEOUT
+        - CONFIGURATION_ERROR
+        - REPORTING_ERROR
+        - DATA_PATH_ERROR
+        - ELEMENT_NOT_FOUND
+        - STEP_ERROR
+        - CONDITION_EVALUATION_ERROR
+        - CANNOT_RELATE_DATA_PATH
+        - VALUE_CONVERSION_ERROR
+        - TIME_VALIDATION_ERROR
+      error_source:
+        description: |
+          Service or S/W component where the error occurred
+        type: string
+        enum:
+        - AMPCS
+        - VENUE_SERVICE          
+        - EMBEDDED_CODE  
+        - EXECUTION_KERNEL
+        - EXECUTION_SERVICE
+        - VENUE_CONFIGURATION
+        - OTHER      
+      http_code_at_source:
+        type: integer
+        description: HTTP response status code of the root error at the source. Zero if not applicable.
+
+  ExecutionStatusInput:
+    properties:
+      status:
+        description: Input status of execution
+        type: string
+        enum:
+          - IDLE
+          - RUNNING
+          - SUSPENDED
+          - CLOSED
+          - IN_REVIEW
+          - FINALIZED
+      comment:
+        description: Optional user comment regarding the status transition
+        type: string
+                  
+  ExecutionStatus:
+    properties:
+      status:
+        description: Status of execution
+        type: string
+        enum:
+          - RUNNING
+          - IDLE
+          - PAUSED
+          - HALTED
+          - SUSPENDED
+          - CLOSED
+          - IN_REVIEW
+          - FINALIZED 
+        
+  Variable:
+    description: This maps the results of the step to a variable for use in guard functions 
+    type: object
+    properties:
+      name: 
+        description: Name of the variable that will be referenced
+        type: string        
+        
+  Code:
+    type: object
+    properties:
+      name:
+        description: Name of the function in Ingenium's version control that should be executed
+        type: string
+      commit:
+        description: Commit hash of the function to be executed 
+        type: string
+        default: Latest
+      release:
+        description: Tagged release of the function to be executed. Note that if release and commit are provided the release takes priority
+        type: string
+        default: Latest        
+
+  Notice:
+    type: object
+    properties:
+      category:
+        description: type of notice
+        type: string
+        enum:
+          - TESTBED_WARNING
+          - PERSONNEL_CAUTION
+      message:
+        type: string
+        description: human readable message of the notice  
+
+  VenueGroupInput:
+    type: object
+    properties:
+      name:
+        type: string
+        description: Name of the venue group (must be unique)
+      description:
+        type: string
+        description: Description of venue group
+      status:
+        description: status of venupe group
+        type: string
+        enum:
+          - ACTIVE
+          - INACTIVE
+  VenueGroup:
+    allOf:
+    - $ref: '#/definitions/VenueGroupInput'
+    - type: object
+      properties:
+        venue_group_id:
+          description: Unique id of the venue group
+          type: string
+
+  # Venue Management Data Object
+  VenueInput:
+    type: object
+    properties:
+      name:
+        type: string
+        description: Name of the venue (must be unique)
+      url:
+        type: string
+        description: URL of the resource
+      description:
+        type: string
+        description: Description of venue        
+      ampcs_address:
+        type: string
+        description: "Network address of the machine that ampcs services/software\
+          \ is run from for the venue in question (e.g. wsts_17.example.com)"
+      sse_address:
+        type: string
+        description: "Network address of the machine that sse services/software is\
+          \ run from for the venue in question (e.g. wsts_17.example.com)"
+      location:
+        type: string
+        description: physical location of the machine (e.g., building 123)
+      type:
+        type: string
+        description: Type of venue
+        enum:
+        - WSTS
+        - Testbed
+        - ATLO
+        - Other
+      venue_group_id:
+        type: string
+        description: id of venue group
+      venue_status:
+        $ref: '#/definitions/VenueStatus'      
+
+  Venue:
+    allOf:
+    - $ref: '#/definitions/VenueInput'
+    properties:
+      venue_id: 
+        type: string
+        description: unique id of venue
+      venue_group_name: 
+        type: string
+        description: name of venue group
+
+  VenueStatus:
+    type: object
+    description: "This data object describes the current status of a venue including who is actively running it, what they are running, and a pointer to the execution record."
+    properties:
+      test_conductor:
+        type: string
+        description: "The name of the person currently executing on the venue."
+      execution_id:
+        type: string
+        description: "Unique ID of the execution record."
+      started_on:
+        type: string
+        description: "The time that the specified execution recorded was created. (i.e. when did the person get on the venue)."
+      status:
+        type: string
+        description: Current status of venue
+        enum:
+        - AVAILABLE
+        - IN_USE
+        - DOWN
+        - UNKNOWN
+        - RETIRED
+        
+  ProcedureInput:
+    description: input to create a procedure
+    type: object
+    properties:
+      title:
+        description: Title of the procedure
+        type: string    
+      description:
+        description: A high level description of the procedure
+        type: string
+      institutional_id:
+        description: Unique id of the procedure in institutional CM
+        type: string                    
+      author:
+        description: The main author of the procedure   
+        type: string
+      hazardous:
+        description: true if the procedure includes hazardous activities
+        type: boolean
+      procedure_type:
+        description: The type of the procedure
+        type: string
+        enum:
+            - STR
+            - SOP
+            - Template
+            - V&V
+            - EIP
+            - Functional
+      labels:
+        description: Procedure labels added to procedure
+        type: array
+        items:
+          $ref: '#/definitions/ProcedureLabelInfo'
+    additionalProperties: false              
+                    
+  ProcedureUpdateInput0:
+    description: input to update a procedure   
+    type: object
+    properties:
+      # note that properties of ProcedureUpdateInput are repeated here.
+      # "additionalProperties: false" does not work when "allOf:" is used.      
+      title:
+        description: Title of the procedure
+        type: string    
+      description:
+        description: A high level description of the procedure
+        type: string
+      institutional_id:
+        description: Unique id of the procedure in institutional CM
+        type: string                    
+      author:
+        description: The main author of the procedure   
+        type: string      
+      locked_by:
+        description: The user who has the edit lock of the working copy.
+        type: string          
+      obsolete:
+        description: true if the procedure has been obsoleted
+        type: boolean   
+      hazardous:
+        description: true if the procedure includes hazardous activities
+        type: boolean   
+      procedure_type:
+        description: The type of the procedure
+        type: string
+        enum:
+            - ''
+            - STR
+            - SOP
+            - Template
+            - V&V
+            - EIP
+            - Functional 
+      labels:
+        description: Procedure labels added to procedure
+        type: array
+        items:
+          $ref: '#/definitions/ProcedureLabelInfo' 
+
+  ProcedureUpdateInput:
+    description: input to update a procedure   
+    type: object
+    properties:
+      # note that properties of ProcedureInput and ProcedureUpdateInput0 are repeated here.
+      # "additionalProperties: false" does not work when "allOf:" is used.      
+      title:
+        description: Title of the procedure
+        type: string    
+      description:
+        description: A high level description of the procedure
+        type: string
+      institutional_id:
+        description: Unique id of the procedure in institutional CM
+        type: string                    
+      author:
+        description: The main author of the procedure   
+        type: string      
+      locked_by:
+        description: The user who has the edit lock of the working copy.
+        type: string          
+      obsolete:
+        description: true if the procedure has been obsoleted
+        type: boolean
+      hazardous:
+        description: true if the procedure includes hazardous activities
+        type: boolean   
+      procedure_type:
+        description: The type of the procedure
+        type: string
+        enum:
+            - ''
+            - STR
+            - SOP
+            - Template
+            - V&V
+            - EIP
+            - Functional  
+      labels:
+        description: Procedure labels added to procedure
+        type: array
+        items:
+          $ref: '#/definitions/ProcedureLabelInfo'  
+    additionalProperties: false   
+          
+  ProcedureInfo:
+    description: meta data of procedure
+    allOf:
+    - $ref: '#/definitions/ProcedureUpdateInput0'
+    - type: object
+      properties:
+        procedure_id:
+          description: Unique id of the procedure
+          type: string        
+        time_created:
+          description: The time the working copy was created     
+          type: string           
+        current_version:
+          description: The current version of the procedure. 0 for working copy only.
+          type: integer
+        current_released_version:
+          description: The current released version of the procedure. 0 for none.
+          type: integer          
+        time_saved:
+          description: The last time the procedure was updated
+          type: string      
+
+  ProcedureLabelInput:
+    description: input to create a procedure label
+    type: object
+    properties:
+      name: 
+        description: Name of the procedure label
+        type: string
+      description:
+        description: Description of the label
+        type: string 
+    additionalProperties: false
+
+  ProcedureLabelInfo:
+    description: meta data of procedure label
+    type: object
+    properties:
+      label_id:
+        description: Unique id of the procedure label
+        type: string       
+      name:
+        description: Name of the procedure label
+        type: string    
+      description:
+        description: A high level description of the procedure label
+        type: string
+      
+    additionalProperties: false
+
+  ProcedureVersionInput:
+    description: meta data to create a procedure version 
+    type: object
+    properties:
+      version_description:
+        description: Description of the version
+        type: string
+      version_author:
+        description: The user who created this version 
+        type: string                        
+    additionalProperties: false        
+
+  ProcedureVersionUpdateInputBase:
+    description: meta data to update a procedure version
+    type: object
+    properties: 
+      # note this is the same as ProcedureVersionUpdateInput except for additionalProperties
+      version_description:
+        description: Description of the version
+        type: string
+      version_author:
+        description: The user who created this version 
+        type: string        
+      api_version:
+        description: Indicates the version of the Ingenium API used to create the procedure version
+        type: string
+      flight_dictionary_version:
+        description: The version of the flight dictionary selected for this version
+        type: string    
+      sse_dictionary_version:
+        description: The version of the SSE dictionary selected for this version
+        type: string
+      institutional_release_id:
+        description: The corresponding release id in the institutional CM
+        type: string            
+      files:
+        type: array
+        items:
+          $ref: '#/definitions/FileInfo' 
+
+  ProcedureVersionUpdateInput:
+    description: meta data to update a procedure version
+    type: object
+    properties: 
+      # note that properties of ProcedureVersionInput are repeated here.
+      # "additionalProperties: false" does not work when "allOf:" is used.   
+      version_description:
+        description: Description of the version
+        type: string
+      version_author:
+        description: The user who created this version 
+        type: string        
+      api_version:
+        description: Indicates the version of the Ingenium API used to create the procedure version
+        type: string
+      flight_dictionary_version:
+        description: The version of the flight dictionary selected for this version
+        type: string    
+      sse_dictionary_version:
+        description: The version of the SSE dictionary selected for this version
+        type: string             
+      institutional_release_id:
+        description: The corresponding release id in the institutional CM
+        type: string            
+      files:
+        type: array
+        items:
+          $ref: '#/definitions/FileInfo'   
+    additionalProperties: false          
+
+  ProcedureVersionInfo:
+    description: meta data of the procedure version
+    allOf:
+    - $ref: '#/definitions/ProcedureVersionUpdateInputBase'
+    - type: object
+      properties:
+        procedure_id:
+          description: unique id of the procedure
+          type: string
+        version_id:
+          description: unique id of the version. This is an internal id.
+          type: string          
+        version:
+          description: Version of the procedure. 0 for working copy.
+          type: integer      
+        time_versioned:
+          description: The time the version was created
+          type: string
+        time_submitted:
+          description: The time the version was submitted for review to institutional CM
+          type: string
+        time_approved:
+          description: The time the version was approved in institutional CM
+          type: string
+        time_released:
+          description: The time the version was released in institutional CM
+          type: string
+        time_obsoleted:
+          description: The time the version was obsoleted
+          type: string
+        time_saved:
+          description: The last time the version was updated
+          type: string
+        tags:
+          description: tags available for elements in this procedure version
+          type: array
+          items:
+            $ref: '#/definitions/Tag'        
+        conversations_count:
+          description: Number of conversations
+          type: integer
+        unresolved_conversations_count:
+          description: Number of unresolved conversations
+          type: integer
+        status:
+          description: status of the procedure version
+          type: string             
+          enum:
+          - WORKING
+          - VERSIONED
+          - SUBMITTED
+          - APPROVED
+          - RELEASED
+          - OBSOLETE
+            
+  ProcedureVersionStatusInput:
+    description: input to change status of a procedure version
+    type: object
+    properties:  
+      action:
+        description: Description of the version
+        type: string
+        enum:
+        - SUBMIT
+        - APPROVE
+        - RELEASE
+        - OBSOLETE
+        - UNSUBMIT
+        - UNAPPROVE
+        - UNRELEASE
+        - UNOBSOLETE
+                  
+  ProcedureStructure:
+    allOf:
+    - $ref: '#/definitions/ProcedureVersionInfo'
+    - type: object
+      properties:
+        children:
+          type: array
+          items:
+            $ref: '#/definitions/ProcedureElementNested'           
+          description: child elements
+
+  ExecutionData:
+    type: object
+    properties:
+      execution_info:
+        $ref: '#/definitions/ExecutionInfo'
+      elements:
+        type: array
+        items:
+          $ref: '#/definitions/ProcedureElement'
+      edges:
+        type: array
+        items:
+          $ref: '#/definitions/ElementEdge'
+
+  VersionsData:
+    type: object
+    properties:
+      procedure_info:
+        $ref: '#/definitions/ProcedureInfo'
+      version_infos:
+        type: array
+        items:
+          $ref: '#/definitions/ProcedureVersionInfo'
+      elements:
+        type: array
+        items:
+          $ref: '#/definitions/ProcedureElement'
+      edges:
+        type: array
+        items:
+          $ref: '#/definitions/ElementEdge'
+  
+  ElementEdge:
+    type: object
+    properties:
+      edge_collection_name:
+        type: string
+        description: edge collection name in database
+      _from:
+        type: string
+        description: from element _id
+      _to:
+        type: string
+        description: to element _id
+      idx:
+        type: integer
+        description: order index
+
+  Message:
+    properties:
+      message:
+        type: string
+        description: short message
+      details:
+        type: array        
+        description: details about the error that may include stack trace
+        items:
+          type: string        
+      message_level:
+        description: level of the message      
+        type: string        
+        enum:
+        - INFO
+        - WARNING           
+        - ERROR           
+
+  TagInput:
+    description: input to change a tag
+    properties:
+      name:
+        description: Name of the tag
+        type: string        
+      description:
+        description: Description of the tag     
+        type: string           
+                     
+  Tag:
+    description: tag that can be applied to a procedure element
+    allOf:
+    - $ref: '#/definitions/TagInput'
+    - type: object
+      properties:
+        tag_id:
+          description: Unique id of the tag
+          type: string      
+
+  DeleteTagResponse:
+    description: Response when a tag is deleted from a procedure. This includes tags of the procedure and elements that were impacted
+    properties:
+      tags:
+        description: tags of the procedure
+        type: array
+        items:
+          $ref: '#/definitions/Tag' 
+      elems:            
+        description: tags of elements that were impacted
+        type: array
+        items:
+          $ref: '#/definitions/ElementTags'
+                    
+  ElementTags:
+    description: tags of element
+    properties:
+      elem_id:
+        description: Unique id of element
+        type: string      
+      tag_ids:
+        description: ids of tags of the element  
+        type: array
+        items:
+          type: string
+     
+  TagSelection:
+    description: selection status of tag
+    properties:
+      tag_id:
+        description: Unique id of the tag
+        type: string        
+      name:
+        description: Name of the tag
+        type: string 
+      description:
+        description: Description of the tag
+        type: string             
+      selected:
+        description: Selection status     
+        type: boolean            
+                  
+  LoggingInfo:
+    type: object
+    required:
+      - level    
+    properties:
+      level:
+        type: string
+        description: Current log level
+        enum:
+        - CRITICAL
+        - ERROR
+        - WARNING
+        - INFO
+        - DEBUG
+ 
+  HealthStatus:
+    type: object
+    properties:
+      status:
+        type: string
+        description: Current status of service
+        enum:
+        - OK
+        - ERROR
+        - UNKNOWN
+      message:
+        type: string
+        description: Any error message        
+
+parameters:
+    
+  execution_id:
+    name: execution_id
+    in: path
+    description: unique id of execution
+    required: true
+    type: string
+
+  elem_id:
+    name: elem_id
+    in: path
+    description: unique id of a procedure element
+    required: true
+    type: string
+    
+  elem_type:
+    name: elem_type
+    in: query
+    description: type of procedure element. If omitted, get all types.
+    required: false
+    type: string
+    enum:
+      - SECTION
+      - PROCEDURE_SECTION
+      - PARAGRAPH
+      - STEP    
+      
+  step_type:
+    name: step_type
+    in: query
+    description: type of step. If omitted, get all types.
+    required: false
+    type: string
+    enum:
+      - MANUAL_INPUT
+      - MANUAL_EIP
+      - VENUE_CONFIG_MANUAL
+      - ENVIRONMENT_MANUAL
+      - GDS_MANUAL
+      - VERIFICATION_ITEM
+      - VERIFICATION_ITEM_STATUS
+      - GRAPH_EHA
+      - QUERY_EVR
+      - VERIFY_EHA     
+      - WAIT_EHA
+      - WAIT_EVR
+      - BUS_1553
+      - LIST_DATA_PRODUCTS
+      - WAIT_DATA_PRODUCTS
+      - CMD
+      - CMD_FILE
+      - CMD_SCMF     
+      - CMD_SSE  
+      - VENUE_CONFIG_GET
+      - VENUE_CONFIG_UPDATE
+      - VENUE_CONFIG_CHECK          
+      - MANUAL_VERIFICATION
+      - CUSTOM_SCRIPT
+      - ANALYSIS
+      - WAIT  
+      - TIME_REFERENCE
+      - TOC
+  
+  insert_after_id:
+    name: insert_after_id
+    in: query
+    description: unique id of the element after which element will be added/inserted. To insert at the front, use "-1".
+    required: true
+    type: string   
+    
+  level:
+    name: level
+    in: query
+    description: |
+      Add as a sibling or a child. 
+      * `SIBLING` - As a sibling of insert_after_id element
+      * `CHILD` - As a child of insert_after_element
+    required: false
+    type: string
+    enum: 
+      - SIBLING
+      - CHILD
+    
+  offset:
+    name: offset    
+    in: query
+    description: Start index for pagination. zero based.
+    required: false
+    type: integer
+    default: 0
+    
+  limit:
+    name: limit
+    in: query
+    description: Max number of elements to return.
+    required: false
+    type: integer
+    default: 50
+    
+  sort:
+    name: sort
+    in: query
+    description: |
+          Sort in natural order
+          * `ASC` - Ascending
+          * `DESC` - Descending
+    required: false
+    type: string
+    enum:
+      - ASC
+      - DESC
+
+  all_elements:
+    name: all_elements
+    in: query
+    description: include all elements regardless of comments
+    required: false
+    type: string
+    default: OFF
+    enum:
+      - ON
+      - OFF
+            
+  comment_filter:
+    name: comment_filter
+    in: query
+    description: include elements with general comments
+    required: false
+    type: string
+    default: OFF
+    enum:
+      - ON
+      - OFF
+      
+  ar_comment_filter:
+    name: ar_comment_filter
+    in: query
+    description: include elements with activity report comments
+    required: false
+    type: string
+    default: OFF
+    enum:
+      - ON
+      - OFF
+      
+  dr_comment_filter:
+    name: dr_comment_filter
+    in: query
+    description: include elements with data review report comments
+    required: false
+    type: string
+    default: OFF
+    enum:
+      - ON
+      - OFF
+
+  procedure_label_name:
+    name: procedure_label_name
+    in: query
+    description: Name of a procedure label
+    required: false
+    type: string
+
+  title:
+    name: title
+    in: query
+    description: Title of a procedure
+    required: false
+    type: string
+    
+  author:
+    name: author
+    in: query
+    description: Author of a procedure
+    required: false
+    type: string    
+              
+  description:
+    name: description
+    in: query
+    description: Query for words in description
+    required: false
+    type: string
+
+  institutional_id:
+    name: institutional_id
+    in: query
+    description: Filter on institutional_id of procedure
+    required: false
+    type: string
+        
+  version_description:
+    name: version_description
+    in: query
+    description: Query for words in procedure version description
+    required: false
+    type: string    
+    
+  institutional_release_id:
+    name: institutional_release_id
+    in: query
+    description: Filter on institutional_release_id of version
+    required: false
+    type: string    
+
+  version_author:
+    name: version_author
+    in: query
+    description: Query for words in version author
+    required: false
+    type: string 
+        
+  completed:    
+    name: completed
+    in: query
+    description: Get only completed or not completed executions
+    required: false
+    type: boolean
+
+  venue_group_id:
+    name: venue_group_id
+    in: path
+    description: "resource id of venue group"
+    required: true
+    type: string
+
+  venue_id:
+    name: venue_id
+    in: path
+    description: "resource id of venue"
+    required: true
+    type: string
+    
+  conversation_id:
+    name: conversation_id
+    in: path
+    description: "resource id of a conversation"
+    required: true
+    type: string
+        
+  file_id:
+    name: file_id
+    in: path
+    description: "resource id of an attached file"
+    required: true
+    type: string    
+    
+  comment_id:
+    name: comment_id
+    in: path
+    description: "resource id of a comment"
+    required: true
+    type: string        
+
+  procedure_id:
+    name: procedure_id
+    in: path
+    description: unique id of procedure
+    required: true
+    type: string
+
+  label_id:
+    name: label_id
+    in: path
+    description: unique id of procedure label
+    required: true
+    type: string
+
+  version:
+    name: version
+    in: path
+    description: version of procedure
+    required: true
+    type: integer
+    
+  tag_id:
+    name: tag_id
+    in: path
+    description: unique id of tag
+    required: true
+    type: string        
+    
+    
+

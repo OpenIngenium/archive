@@ -1,0 +1,40 @@
+'use strict';
+
+var ProcSection = require('./ProcSectionService');
+
+module.exports.create_procedure_section = function create_procedure_section (req, res, next) {
+  ProcSection.create_procedure_section(req.swagger.params, res, next);
+};
+
+module.exports.get_execution_procedure_sections = function get_execution_procedure_sections (req, res, next) {
+  ProcSection.get_execution_procedure_sections(req.swagger.params, res, next);
+};
+
+module.exports.get_procedure_section = function get_procedure_section (req, res, next) {
+  ProcSection.get_procedure_section(req.swagger.params, res, next);
+};
+
+
+module.exports.get_procedure_section_structure = function get_procedure_section_structure (req, res, next) {
+  ProcSection.get_procedure_section_structure(req.swagger.params, res, next);
+};
+
+module.exports.get_procedure_section_elements = function get_procedure_section_elements (req, res, next) {
+  ProcSection.get_procedure_section_elements(req.swagger.params, res, next);
+};
+
+module.exports.import_procedure_section = function import_procedure_section (req, res, next) {
+  ProcSection.import_procedure_section(req.swagger.params, res, next);
+};
+
+module.exports.update_procedure_section = function update_procedure_section (req, res, next) {
+  ProcSection.update_procedure_section(req.swagger.params, res, next);
+};
+
+module.exports.get_procedure_section_input = function get_procedure_section_input (req, res, next) {
+  ProcSection.get_procedure_section_input(req.swagger.params, res, next);
+};
+
+module.exports.update_procedure_section_input = function update_procedure_section_input (req, res, next) {
+  ProcSection.update_procedure_section_input(req.swagger.params, res, next);
+};

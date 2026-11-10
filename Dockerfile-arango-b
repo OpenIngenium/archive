@@ -1,0 +1,8 @@
+### To build:
+# docker build -f Dockerfile-arango-b -t ingenium/arangodb:3.9.3b .
+### To publish
+# Replace <registry> with your container registry, e.g. myregistry.example.com
+# docker tag ingenium/arangodb:3.9.3b <registry>/ingenium/arangodb:3.9.3b
+# docker push <registry>/ingenium/arangodb:3.9.3b
+FROM arangodb/arangodb:3.9.3
+COPY arangod-b.conf /etc/arangodb3/arangod.conf
